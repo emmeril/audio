@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎤 Audio Sender (Simple)</title>
+    <meta charset="utf-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .status.idle { background: #f0f0f0; color: #666; }
+        .status.sharing { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .btn-start {
+            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+            color: white;
+        }
+        .btn-start:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3); }
+        .btn-stop {
+            background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
+            color: white;
+        }
+        .btn-stop:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(244, 67, 54, 0.3); }
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: left;
+            font-size: 14px;
+            color: #1565c0;
+        }
+        .info-box h3 { margin-bottom: 10px; color: #0d47a1; }
+        .url-box {
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+        .audio-visualizer {
+            height: 100px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+            position: relative;
+        }
+        .audio-bar {
+            position: absolute;
+            bottom: 0;
+            width: 10px;
+            background: linear-gradient(to top, #4CAF50, #8BC34A);
+            border-radius: 5px 5px 0 0;
+            transition: height 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Audio Sender</h1>
+        <div class="subtitle">Share audio dari browser Chrome ke komputer lain</div>
+        
+        <div class="audio-visualizer" id="visualizer"></div>
+        
+        <div class="status idle" id="status">Status: Idle</div>
+        
+        <button class="btn btn-start" id="startBtn">
+            <span>▶️</span> Start Sharing Audio
+        </button>
+        
+        <button class="btn btn-stop" id="stopBtn" disabled>
+            <span>⏹️</span> Stop Sharing
+        </button>
+        
+        <div class="info-box">
+            <h3>📌 Cara Pakai:</h3>
+            <p>1. Klik "Start Sharing" (izinkan akses audio)</p>
+            <p>2. Buka Chrome, putar musik/video</p>
+            <p>3. Buka link di bawah di komputer lain:</p>
+            <div class="url-box" id="receiverUrl"></div>
+            <p style="margin-top: 10px;">⚠️ Pastikan audio Chrome tidak muted</p>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+        let isSharing = false;
+        let animationId = null;
+
+        document.getElementById('receiverUrl').textContent = 
+            window.location.origin.replace('sender.html', 'receiver.html');
+
+        // Buat audio visualizer
+        function createVisualizer() {
+            const visualizer = document.getElementById('visualizer');
+            visualizer.innerHTML = '';
+            for (let i = 0; i < 50; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'audio-bar';
+                bar.style.left = (i * 12) + 'px';
+                bar.style.height = '0px';
+                visualizer.appendChild(bar);
+            }
+        }
+
+        function updateVisualizer(volume) {
+            const bars = document.querySelectorAll('.audio-bar');
+            bars.forEach((bar, i) => {
+                const randomFactor = Math.random() * 0.3 + 0.7;
+                const height = Math.min(100, volume * randomFactor * 100);
+                bar.style.height = height + 'px';
+                bar.style.opacity = 0.5 + (height / 100) * 0.5;
+            });
+        }
+
+        async function startSharing() {
+            try {
+                // Connect WebSocket ke server
+                ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port || 8080}`);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                    ws.send('sender');
+                    
+                    // Mulai capture audio
+                    startAudioCapture();
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateStatus('error', 'Connection error');
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket closed');
+                    stopSharing();
+                };
+                
+            } catch (error) {
+                console.error('Error:', error);
+                updateStatus('error', 'Failed to connect');
+            }
+        }
+
+        async function startAudioCapture() {
+            try {
+                // Request audio capture dari browser
+                // Method 1: Capture tab audio (perlu Chrome dengan flag khusus)
+                // Method 2: Capture seluruh desktop audio (paling efektif)
+                
+                const constraints = {
+                    audio: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop'
+                        }
+                    },
+                    video: false
+                };
+                
+                // Fallback: gunakan system audio capture
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true,
+                    video: false
+                });
+                
+                // Alternatif: untuk Chrome, bisa pakai getDisplayMedia untuk capture tab
+                // mediaStream = await navigator.mediaDevices.getDisplayMedia({
+                //     audio: true,
+                //     video: false
+                // });
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                
+                // Buat processor untuk capture audio data
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+                
+                let lastUpdate = 0;
+                
+                processor.onaudioprocess = (e) => {
+                    if (!isSharing || !ws || ws.readyState !== WebSocket.OPEN) return;
+                    
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    
+                    // Hitung volume untuk visualizer
+                    const now = Date.now();
+                    if (now - lastUpdate > 100) { // Update setiap 100ms
+                        let sum = 0;
+                        for (let i = 0; i < inputData.length; i++) {
+                            sum += inputData[i] * inputData[i];
+                        }
+                        const rms = Math.sqrt(sum / inputData.length);
+                        updateVisualizer(rms);
+                        lastUpdate = now;
+                    }
+                    
+                    // Kirim audio data ke server (downsample untuk hemat bandwidth)
+                    const downsampleFactor = 2;
+                    const downsampled = new Float32Array(Math.floor(inputData.length / downsampleFactor));
+                    
+                    for (let i = 0; i < downsampled.length; i++) {
+                        downsampled[i] = inputData[i * downsampleFactor];
+                    }
+                    
+                    // Konversi ke Int16 untuk lebih kecil
+                    const int16Data = new Int16Array(downsampled.length);
+                    for (let i = 0; i < downsampled.length; i++) {
+                        int16Data[i] = Math.max(-32768, Math.min(32767, downsampled[i] * 32768));
+                    }
+                    
+                    // Kirim via WebSocket
+                    ws.send(int16Data.buffer);
+                };
+                
+                isSharing = true;
+                updateStatus('sharing', 'Sharing audio...');
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                createVisualizer();
+                
+            } catch (error) {
+                console.error('Audio capture error:', error);
+                updateStatus('error', 'Cannot access audio. Make sure Chrome has audio permissions.');
+                
+                // Fallback: coba method lain
+                alert('Tips: Untuk capture audio Chrome, coba:\n\n1. Buka chrome://flags/\n2. Cari "Audio mirroring"\n3. Enable dan restart Chrome\n\nAtau izinkan akses microphone di browser settings.');
+            }
+        }
+
+        function stopSharing() {
+            isSharing = false;
+            
+            if (processor) {
+                processor.disconnect();
+                processor = null;
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+            
+            updateStatus('idle', 'Ready to share');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            // Clear visualizer
+            updateVisualizer(0);
+        }
+
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = `Status: ${message}`;
+        }
+
+        // Event Listeners
+        document.getElementById('startBtn').addEventListener('click', startSharing);
+        document.getElementById('stopBtn').addEventListener('click', stopSharing);
+
+        // Cleanup saat window close
+        window.addEventListener('beforeunload', stopSharing);
+        
+        createVisualizer();
+    </script>
+</body>
+</html>

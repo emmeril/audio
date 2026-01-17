@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>🎧 Audio Receiver (Simple)</title>
+    <meta charset="utf-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #2196F3 0%, #21CBF3 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .status.disconnected { background: #f0f0f0; color: #666; }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.listening { background: #cce5ff; color: #004085; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .btn-connect {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+        .btn-connect:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(33, 150, 243, 0.3); }
+        .btn-disconnect {
+            background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
+            color: white;
+        }
+        .btn-disconnect:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(244, 67, 54, 0.3); }
+        .volume-control {
+            margin: 20px 0;
+            text-align: left;
+        }
+        .volume-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: #e0e0e0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #2196F3;
+            cursor: pointer;
+        }
+        .audio-visualizer {
+            height: 150px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+            position: relative;
+        }
+        .audio-wave {
+            position: absolute;
+            bottom: 0;
+            width: 5px;
+            background: linear-gradient(to top, #2196F3, #21CBF3);
+            border-radius: 5px 5px 0 0;
+        }
+        .connection-info {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .server-url {
+            background: #333;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 Audio Receiver</h1>
+        <div class="subtitle">Dengarkan audio dari komputer lain</div>
+        
+        <div class="audio-visualizer" id="visualizer">
+            <!-- Audio wave akan dibuat oleh JavaScript -->
+        </div>
+        
+        <div class="status disconnected" id="status">
+            Status: Disconnected
+        </div>
+        
+        <button class="btn btn-connect" id="connectBtn">
+            <span>🔗</span> Connect to Stream
+        </button>
+        
+        <button class="btn btn-disconnect" id="disconnectBtn" disabled>
+            <span>🔌</span> Disconnect
+        </button>
+        
+        <div class="volume-control">
+            <div class="volume-label">
+                <span>🔊 Volume</span>
+                <span id="volumeValue">70%</span>
+            </div>
+            <input type="range" id="volumeSlider" min="0" max="100" value="70">
+        </div>
+        
+        <div class="connection-info">
+            <p><strong>Connected to:</strong></p>
+            <div class="server-url" id="serverUrl"></div>
+            <p style="margin-top: 10px;">Audio akan otomatis mulai ketika sender sharing</p>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let audioContext = null;
+        let audioQueue = [];
+        let isPlaying = false;
+        let volume = 0.7;
+        let animationId = null;
+
+        document.getElementById('serverUrl').textContent = 
+            `ws://${window.location.hostname}:${window.location.port || 8080}`;
+
+        // Buat audio visualizer
+        function createVisualizer() {
+            const visualizer = document.getElementById('visualizer');
+            visualizer.innerHTML = '';
+            for (let i = 0; i < 60; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'audio-wave';
+                bar.style.left = (i * 8.5) + 'px';
+                bar.style.height = '5px';
+                bar.id = 'wave-' + i;
+                visualizer.appendChild(bar);
+            }
+        }
+
+        function updateVisualizer(amplitude) {
+            const bars = document.querySelectorAll('.audio-wave');
+            bars.forEach((bar, i) => {
+                const delay = (i * 0.05) % 2;
+                const height = 5 + (amplitude * 140 * Math.abs(Math.sin(Date.now() * 0.005 + delay)));
+                bar.style.height = height + 'px';
+                bar.style.opacity = 0.3 + (amplitude * 0.7);
+            });
+        }
+
+        function connectToStream() {
+            try {
+                ws = new WebSocket(`ws://${window.location.hostname}:${window.location.port || 8080}`);
+                
+                updateStatus('connected', 'Connected to server');
+                
+                ws.onopen = () => {
+                    console.log('Connected as receiver');
+                    ws.send('receiver');
+                    updateStatus('connected', 'Waiting for audio stream...');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    
+                    // Setup Web Audio API
+                    setupAudio();
+                };
+                
+                ws.onmessage = (event) => {
+                    // Cek jika ini message JSON (connection ack)
+                    if (typeof event.data === 'string') {
+                        try {
+                            const msg = JSON.parse(event.data);
+                            if (msg.type === 'connected') {
+                                updateStatus('connected', msg.message);
+                            }
+                        } catch (e) {
+                            // Jika bukan JSON, itu audio data
+                            processAudioData(event.data);
+                        }
+                    } else {
+                        // Audio data binary
+                        processAudioData(event.data);
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateStatus('error', 'Connection error');
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket closed');
+                    disconnect();
+                };
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                updateStatus('error', 'Failed to connect');
+            }
+        }
+
+        function setupAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('Audio context created');
+            } catch (error) {
+                console.error('Web Audio API not supported:', error);
+                updateStatus('error', 'Browser tidak support Web Audio API');
+            }
+        }
+
+        function processAudioData(audioData) {
+            if (!audioContext) return;
+            
+            // Convert binary data back to Int16Array
+            const int16Array = new Int16Array(audioData);
+            
+            // Convert to Float32Array for Web Audio API
+            const float32Array = new Float32Array(int16Array.length);
+            for (let i = 0; i < int16Array.length; i++) {
+                float32Array[i] = int16Array[i] / 32768;
+            }
+            
+            // Hitung amplitude untuk visualizer
+            let sum = 0;
+            for (let i = 0; i < float32Array.length; i++) {
+                sum += float32Array[i] * float32Array[i];
+            }
+            const rms = Math.sqrt(sum / float32Array.length);
+            updateVisualizer(rms);
+            
+            // Buffer audio data
+            audioQueue.push(float32Array);
+            
+            // Start playback jika belum
+            if (!isPlaying && audioQueue.length > 10) {
+                isPlaying = true;
+                updateStatus('listening', 'Listening to audio...');
+                playAudio();
+            }
+        }
+
+        function playAudio() {
+            if (!isPlaying || audioQueue.length === 0 || !audioContext) {
+                requestAnimationFrame(playAudio);
+                return;
+            }
+            
+            // Ambil chunk audio dari queue
+            const audioData = audioQueue.shift();
+            
+            // Buat audio buffer
+            const buffer = audioContext.createBuffer(1, audioData.length, audioContext.sampleRate);
+            buffer.copyToChannel(audioData, 0);
+            
+            // Buat audio source
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            
+            // Buat gain node untuk volume control
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = volume;
+            
+            // Connect nodes
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Play audio
+            source.start();
+            
+            // Schedule next chunk
+            const delay = buffer.duration * 1000 * 0.9; // 90% dari duration untuk overlap
+            setTimeout(() => {
+                requestAnimationFrame(playAudio);
+            }, delay);
+        }
+
+        function disconnect() {
+            isPlaying = false;
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            audioQueue = [];
+            updateStatus('disconnected', 'Disconnected');
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            
+            // Reset visualizer
+            updateVisualizer(0);
+        }
+
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = `Status: ${message}`;
+        }
+
+        // Event Listeners
+        document.getElementById('connectBtn').addEventListener('click', connectToStream);
+        document.getElementById('disconnectBtn').addEventListener('click', disconnect);
+
+        // Volume control
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        
+        volumeSlider.addEventListener('input', (e) => {
+            volume = e.target.value / 100;
+            volumeValue.textContent = e.target.value + '%';
+        });
+
+        // Cleanup saat window close
+        window.addEventListener('beforeunload', disconnect);
+        
+        createVisualizer();
+        
+        // Auto-connect jika di URL ada parameter auto
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auto') === 'true') {
+            setTimeout(() => {
+                connectToStream();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
