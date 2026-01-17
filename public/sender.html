@@ -1,120 +1,289 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Stream - Pengirim</title>
+    <title>AudioStream - Host Room</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-purple {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .status-online { color: #10b981; }
+        .status-offline { color: #ef4444; }
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
-    <div x-data="senderApp()" class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-800">🎤 Pengirim Audio</h1>
-                <p class="text-gray-600">Bagikan audio dari YouTube Music atau aplikasi lainnya</p>
-            </div>
-            <a href="/" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition">
-                ← Kembali
-            </a>
-        </div>
-
-        <!-- Main Content -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- Control Panel -->
-            <div class="bg-white rounded-2xl shadow-xl p-6">
-                <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-                    <span class="mr-2">⚙️</span> Kontrol Streaming
-                </h2>
-
-                <!-- Room Info -->
-                <div class="mb-6 p-4 bg-blue-50 rounded-lg" x-show="roomCode">
-                    <div class="flex justify-between items-center">
+<body class="h-full gradient-purple">
+    <div x-data="senderApp()" x-init="init()" class="min-h-screen">
+        <!-- Top Navigation -->
+        <nav class="bg-white/10 backdrop-blur-sm border-b border-white/20">
+            <div class="container mx-auto px-4">
+                <div class="flex justify-between items-center py-4">
+                    <div class="flex items-center space-x-3">
+                        <a href="/" class="text-white hover:text-white/80">
+                            <i class="fas fa-arrow-left"></i>
+                        </a>
                         <div>
-                            <p class="text-sm text-blue-600">Kode Room:</p>
-                            <p class="text-2xl font-bold text-blue-800" x-text="roomCode"></p>
-                            <p class="text-sm text-blue-600 mt-1">
-                                <span x-text="connectedUsers"></span> pendengar terhubung
-                            </p>
+                            <h1 class="text-xl font-bold text-white">Host Room</h1>
+                            <p class="text-white/80 text-sm" x-text="roomCode"></p>
                         </div>
-                        <button @click="copyRoomCode()"
-                                class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition">
-                            📋 Salin
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full" :class="isStreaming ? 'bg-green-500 pulse-animation' : 'bg-red-500'"></div>
+                            <span class="text-white text-sm" x-text="isStreaming ? 'Live' : 'Offline'"></span>
+                        </div>
+                        <button @click="copyRoomLink()" 
+                                class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm">
+                            <i class="fas fa-share mr-2"></i>Share
                         </button>
                     </div>
                 </div>
-
-                <!-- Instructions -->
-                <div class="mb-6 p-4 bg-yellow-50 rounded-lg">
-                    <h3 class="font-semibold text-yellow-800 mb-2">📋 Cara Menggunakan:</h3>
-                    <ol class="list-decimal pl-5 text-yellow-700 space-y-1 text-sm">
-                        <li>Buka YouTube Music atau aplikasi musik di tab terpisah</li>
-                        <li>Klik "Mulai Streaming" di bawah</li>
-                        <li>Pilih "Share audio" saat memilih layar/tab yang akan dibagikan</li>
-                        <li>Bagikan kode room ke pendengar</li>
-                    </ol>
-                </div>
-
-                <!-- Buttons -->
-                <div class="space-y-4">
-                    <button @click="startStreaming()"
-                            :disabled="isStreaming"
-                            :class="isStreaming ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'"
-                            class="w-full text-white font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center">
-                        <span class="mr-2" x-text="isStreaming ? '🔴' : '▶️'"></span>
-                        <span x-text="isStreaming ? 'Streaming Aktif' : 'Mulai Streaming'"></span>
-                    </button>
-
-                    <button @click="stopStreaming()"
-                            :disabled="!isStreaming"
-                            :class="isStreaming ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400'"
-                            class="w-full text-white font-semibold py-3 px-4 rounded-lg transition duration-200">
-                        ⏹️ Berhenti Streaming
-                    </button>
-                </div>
-
-                <!-- Status -->
-                <div class="mt-6 p-4 rounded-lg" :class="statusClass">
-                    <p class="font-semibold" x-text="statusMessage"></p>
-                    <p class="text-sm mt-1" x-text="statusDescription"></p>
-                </div>
             </div>
+        </nav>
 
-            <!-- Preview & Info -->
-            <div class="space-y-8">
-                <!-- Preview -->
-                <div class="bg-white rounded-2xl shadow-xl p-6">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4">👁️ Preview</h2>
-                    <div class="aspect-video bg-gray-900 rounded-lg overflow-hidden">
-                        <video x-ref="previewVideo" 
-                               autoplay 
-                               muted
-                               class="w-full h-full object-contain">
-                        </video>
+        <div class="container mx-auto px-4 py-8">
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- Left Column - Controls -->
+                <div class="lg:col-span-2 space-y-8">
+                    <!-- Streaming Card -->
+                    <div class="card-glass rounded-2xl p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-800">
+                                    <i class="fas fa-broadcast-tower mr-3"></i>
+                                    Kontrol Streaming
+                                </h2>
+                                <p class="text-gray-600 mt-1" x-text="statusMessage"></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-gray-600">Listeners Online</p>
+                                <p class="text-3xl font-bold text-purple-600" x-text="listeners.length"></p>
+                            </div>
+                        </div>
+
+                        <!-- Room Info -->
+                        <div class="mb-6 p-4 bg-purple-50 rounded-xl">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm text-purple-600 mb-1">Room Code:</p>
+                                    <p class="text-2xl font-bold text-purple-800 font-mono" x-text="roomCode"></p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-purple-600 mb-1">Host:</p>
+                                    <p class="text-xl font-semibold text-purple-800" x-text="hostName"></p>
+                                </div>
+                            </div>
+                            <div class="mt-4 flex space-x-2">
+                                <button @click="copyRoomCode()"
+                                        class="flex-1 bg-purple-100 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-200">
+                                    <i class="fas fa-copy mr-2"></i>Copy Code
+                                </button>
+                                <button @click="copyInviteLink()"
+                                        class="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                                    <i class="fas fa-link mr-2"></i>Copy Link
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Streaming Controls -->
+                        <div class="space-y-4">
+                            <button @click="toggleStreaming()"
+                                    :disabled="isStartingStream"
+                                    :class="isStreaming ? 
+                                            'bg-red-600 hover:bg-red-700' : 
+                                            'bg-green-600 hover:bg-green-700'"
+                                    class="w-full text-white font-bold py-4 px-6 rounded-xl text-lg flex items-center justify-center">
+                                <i class="fas" :class="isStreaming ? 'fa-stop' : 'fa-play'" class="mr-3"></i>
+                                <span x-text="isStreaming ? 'Stop Streaming' : 'Start Streaming'"></span>
+                                <span x-show="isStartingStream" class="ml-3">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </span>
+                            </button>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <button @click="refreshListeners()"
+                                        class="bg-blue-100 text-blue-700 px-4 py-3 rounded-lg hover:bg-blue-200">
+                                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                                </button>
+                                <button @click="leaveRoom()"
+                                        class="bg-gray-100 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-200">
+                                    <i class="fas fa-sign-out-alt mr-2"></i>Leave Room
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Instructions -->
+                        <div class="mt-8 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                            <h4 class="font-bold text-yellow-800 mb-2 flex items-center">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                Panduan Streaming:
+                            </h4>
+                            <ol class="text-yellow-700 text-sm space-y-2">
+                                <li class="flex items-start">
+                                    <span class="font-bold mr-2">1.</span>
+                                    <span>Buka <a href="https://music.youtube.com" target="_blank" class="underline font-semibold">YouTube Music</a> di tab baru</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="font-bold mr-2">2.</span>
+                                    <span>Play lagu yang ingin di-streaming</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="font-bold mr-2">3.</span>
+                                    <span>Klik "Start Streaming" di atas</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="font-bold mr-2">4.</span>
+                                    <span>Pilih tab YouTube Music dan centang "Share audio"</span>
+                                </li>
+                            </ol>
+                        </div>
                     </div>
-                    <p class="text-sm text-gray-500 mt-2 text-center" x-show="!isStreaming">
-                        Preview akan muncul setelah memulai streaming
-                    </p>
+
+                    <!-- Preview Section -->
+                    <div class="card-glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-eye mr-3"></i>
+                            Preview Streaming
+                        </h3>
+                        
+                        <div class="aspect-video bg-black rounded-xl overflow-hidden mb-4">
+                            <video x-ref="previewVideo" 
+                                   autoplay 
+                                   muted
+                                   playsinline
+                                   class="w-full h-full object-contain">
+                                Your browser doesn't support video preview
+                            </video>
+                        </div>
+                        
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <div>
+                                <i class="fas fa-volume-up mr-2"></i>
+                                <span>Audio: <span x-text="hasAudio ? 'Aktif' : 'Tidak Aktif'"></span></span>
+                            </div>
+                            <div>
+                                <i class="fas fa-video mr-2"></i>
+                                <span>Video: <span x-text="hasVideo ? 'Aktif' : 'Tidak Aktif'"></span></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Connected Users -->
-                <div class="bg-white rounded-2xl shadow-xl p-6">
-                    <h2 class="text-xl font-semibold text-gray-800 mb-4">👥 Pendengar Terhubung</h2>
-                    <div class="space-y-2">
-                        <template x-for="user in listeners" :key="user">
-                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div class="flex items-center">
-                                    <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-                                    <span class="text-gray-700" x-text="'Pendengar ' + user.substring(0, 8)"></span>
+                <!-- Right Column - Listeners & Chat -->
+                <div class="space-y-8">
+                    <!-- Listeners List -->
+                    <div class="card-glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-users mr-3"></i>
+                            Pendengar Online
+                            <span class="ml-2 bg-purple-100 text-purple-800 text-sm px-2 py-1 rounded-full" 
+                                  x-text="listeners.length"></span>
+                        </h3>
+                        
+                        <div class="space-y-3 max-h-96 overflow-y-auto">
+                            <template x-for="listener in listeners" :key="listener.id">
+                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <div class="flex items-center">
+                                        <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                                            <i class="fas fa-user text-purple-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-gray-800" x-text="listener.name"></p>
+                                            <p class="text-xs text-gray-500" x-text="formatTime(listener.joinedAt)"></p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span class="text-xs text-gray-500">Online</span>
+                                    </div>
                                 </div>
-                                <span class="text-sm text-gray-500">Online</span>
+                            </template>
+                            
+                            <div x-show="listeners.length === 0" 
+                                 class="text-center py-8 text-gray-500">
+                                <i class="fas fa-user-slash text-4xl mb-3"></i>
+                                <p>Belum ada pendengar</p>
+                                <p class="text-sm mt-1">Bagikan kode room untuk mengundang</p>
                             </div>
-                        </template>
-                        <p class="text-gray-500 text-center p-4" x-show="listeners.length === 0">
-                            Belum ada pendengar yang terhubung
-                        </p>
+                        </div>
+                    </div>
+
+                    <!-- Chat Box -->
+                    <div class="card-glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-comments mr-3"></i>
+                            Chat Room
+                        </h3>
+                        
+                        <div class="space-y-4">
+                            <!-- Chat Messages -->
+                            <div class="h-64 overflow-y-auto space-y-3 p-2">
+                                <template x-for="message in messages" :key="message.timestamp">
+                                    <div :class="message.isHost ? 'bg-blue-50' : 'bg-gray-50'"
+                                         class="p-3 rounded-lg">
+                                        <div class="flex justify-between items-start mb-1">
+                                            <span class="font-semibold" 
+                                                  :class="message.isHost ? 'text-blue-700' : 'text-gray-700'"
+                                                  x-text="message.sender">
+                                            </span>
+                                            <span class="text-xs text-gray-500" x-text="message.timestamp"></span>
+                                        </div>
+                                        <p class="text-gray-800" x-text="message.message"></p>
+                                    </div>
+                                </template>
+                                
+                                <div x-show="messages.length === 0" 
+                                     class="text-center py-8 text-gray-500">
+                                    <i class="fas fa-comment-slash text-3xl mb-3"></i>
+                                    <p>Belum ada pesan</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Chat Input -->
+                            <div class="flex space-x-2">
+                                <input x-model="chatMessage" 
+                                       @keyup.enter="sendMessage()"
+                                       type="text" 
+                                       placeholder="Ketik pesan..."
+                                       class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <button @click="sendMessage()"
+                                        class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Stats -->
+                    <div class="card-glass rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Statistik</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="text-center p-3 bg-blue-50 rounded-lg">
+                                <p class="text-2xl font-bold text-blue-700" x-text="totalListenersToday"></p>
+                                <p class="text-sm text-blue-600">Total Pendengar</p>
+                            </div>
+                            <div class="text-center p-3 bg-green-50 rounded-lg">
+                                <p class="text-2xl font-bold text-green-700" x-text="streamingTime"></p>
+                                <p class="text-sm text-green-600">Durasi Streaming</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -125,99 +294,189 @@
         function senderApp() {
             return {
                 socket: null,
-                roomCode: '',
-                isStreaming: false,
-                peerConnections: new Map(),
-                listeners: [],
-                connectedUsers: 0,
                 stream: null,
-                
+                peerConnections: new Map(),
+                roomCode: '',
+                hostName: '',
+                isStreaming: false,
+                isStartingStream: false,
+                listeners: [],
+                messages: [],
+                chatMessage: '',
+                hasAudio: false,
+                hasVideo: false,
+                totalListenersToday: 0,
+                streamingTime: '0m',
+                streamingStartTime: null,
                 statusMessage: 'Siap untuk memulai streaming',
-                statusDescription: 'Klik "Mulai Streaming" untuk berbagi audio dari komputer Anda',
-                statusClass: 'bg-gray-100 text-gray-700',
                 
                 async init() {
-                    // Generate random room code
-                    this.roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                    // Get URL parameters
+                    const urlParams = new URLSearchParams(window.location.search);
+                    this.roomCode = urlParams.get('room');
+                    this.hostName = decodeURIComponent(urlParams.get('name') || 'Host');
                     
-                    // Connect to Socket.io
+                    if (!this.roomCode) {
+                        alert('Room tidak valid. Kembali ke halaman utama.');
+                        window.location.href = '/';
+                        return;
+                    }
+                    
+                    // Connect to socket
                     this.socket = io();
                     
-                    // Join room
-                    this.socket.emit('join-room', this.roomCode);
+                    // Join room as host
+                    this.socket.emit('create-room', {
+                        roomId: this.roomCode,
+                        username: this.hostName
+                    });
                     
-                    // Listen for new listeners
-                    this.socket.on('sdp-answer', async (data) => {
-                        const pc = this.peerConnections.get(this.socket.id);
+                    // Socket event listeners
+                    this.socket.on('room-created', () => {
+                        console.log('Room created successfully');
+                        this.statusMessage = `Room ${this.roomCode} aktif. Bagikan kode ini.`;
+                    });
+                    
+                    this.socket.on('listener-joined', (data) => {
+                        console.log('New listener joined:', data);
+                        this.listeners.push({
+                            id: data.listenerId,
+                            name: data.listenerName,
+                            joinedAt: new Date()
+                        });
+                        this.totalListenersToday++;
+                        
+                        // Send welcome message
+                        this.socket.emit('send-message', {
+                            roomId: this.roomCode,
+                            message: `${data.listenerName} telah bergabung ke room!`,
+                            sender: 'System'
+                        });
+                    });
+                    
+                    this.socket.on('listener-left', (data) => {
+                        this.listeners = this.listeners.filter(l => l.id !== data.listenerId);
+                    });
+                    
+                    this.socket.on('new-message', (message) => {
+                        this.messages.push(message);
+                        // Auto scroll to bottom
+                        setTimeout(() => {
+                            const chatContainer = document.querySelector('[x-ref="chatContainer"]');
+                            if (chatContainer) {
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+                        }, 100);
+                    });
+                    
+                    this.socket.on('webrtc-answer', async (data) => {
+                        const pc = this.peerConnections.get(data.from);
                         if (pc) {
                             await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                         }
                     });
                     
                     this.socket.on('ice-candidate', async (data) => {
-                        const pc = this.peerConnections.get(this.socket.id);
-                        if (pc) {
+                        const pc = this.peerConnections.get(data.from);
+                        if (pc && data.candidate) {
                             await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                         }
                     });
                     
-                    this.socket.on('user-joined', (userId) => {
-                        this.listeners.push(userId);
-                        this.connectedUsers = this.listeners.length;
-                        this.updateStatus(`${userId} bergabung`, 'bg-green-100 text-green-700');
-                    });
+                    // Update streaming time every minute
+                    setInterval(() => {
+                        if (this.streamingStartTime) {
+                            const diff = Date.now() - this.streamingStartTime;
+                            const minutes = Math.floor(diff / 60000);
+                            this.streamingTime = `${minutes}m`;
+                        }
+                    }, 60000);
                     
-                    this.socket.on('user-left', (userId) => {
-                        this.listeners = this.listeners.filter(id => id !== userId);
-                        this.connectedUsers = this.listeners.length;
-                        this.updateStatus(`${userId} keluar`, 'bg-yellow-100 text-yellow-700');
-                    });
+                    // Request room info
+                    this.socket.emit('get-room-info', this.roomCode);
+                },
+                
+                async toggleStreaming() {
+                    if (this.isStreaming) {
+                        await this.stopStreaming();
+                    } else {
+                        await this.startStreaming();
+                    }
                 },
                 
                 async startStreaming() {
                     try {
-                        this.updateStatus('Mengambil izin screen sharing...', 'bg-blue-100 text-blue-700');
+                        this.isStartingStream = true;
+                        this.statusMessage = 'Meminta izin screen sharing...';
                         
-                        // Get screen sharing stream with audio
+                        // Request screen sharing with audio
                         const constraints = {
-                            video: true,
+                            video: {
+                                cursor: "always"
+                            },
                             audio: {
-                                echoCancellation: false,
-                                noiseSuppression: false,
-                                autoGainControl: false
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                sampleRate: 44100
                             }
                         };
                         
+                        // Try to get display media
                         this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+                        
+                        // Check if audio is being captured
+                        const audioTracks = this.stream.getAudioTracks();
+                        this.hasAudio = audioTracks.length > 0;
+                        this.hasVideo = this.stream.getVideoTracks().length > 0;
+                        
+                        if (!this.hasAudio) {
+                            alert('⚠️ Audio tidak terdeteksi. Pastikan Anda mencentang "Share audio" saat memilih tab/window.');
+                        }
                         
                         // Show preview
                         this.$refs.previewVideo.srcObject = this.stream;
                         
+                        // Update status
                         this.isStreaming = true;
-                        this.updateStatus('Streaming aktif!', 'bg-green-100 text-green-700');
+                        this.isStartingStream = false;
+                        this.streamingStartTime = Date.now();
+                        this.statusMessage = 'Streaming aktif! Audio sedang dikirim ke pendengar.';
+                        
+                        // Notify server
+                        this.socket.emit('start-streaming', this.roomCode);
                         
                         // Create peer connections for existing listeners
                         this.createPeerConnections();
                         
+                        // Handle track ended (user stops sharing)
+                        this.stream.getVideoTracks()[0].onended = () => {
+                            this.stopStreaming();
+                        };
+                        
                     } catch (error) {
                         console.error('Error starting stream:', error);
-                        this.updateStatus('Gagal memulai streaming: ' + error.message, 'bg-red-100 text-red-700');
+                        this.isStartingStream = false;
+                        this.statusMessage = 'Gagal memulai streaming: ' + error.message;
+                        
+                        if (error.name === 'NotAllowedError') {
+                            alert('Izin screen sharing ditolak. Harap izinkan akses screen sharing.');
+                        }
                     }
                 },
                 
                 async createPeerConnections() {
-                    // Create RTCPeerConnection for each listener
                     const configuration = {
                         iceServers: [
                             { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' }
+                            { urls: 'stun:stun1.l.google.com:19302' },
+                            { urls: 'stun:stun2.l.google.com:19302' }
                         ]
                     };
                     
                     for (const listener of this.listeners) {
                         const pc = new RTCPeerConnection(configuration);
                         
-                        // Add local stream tracks
+                        // Add stream tracks
                         this.stream.getTracks().forEach(track => {
                             pc.addTrack(track, this.stream);
                         });
@@ -226,52 +485,103 @@
                         pc.onicecandidate = (event) => {
                             if (event.candidate) {
                                 this.socket.emit('ice-candidate', {
-                                    roomId: this.roomCode,
+                                    to: listener.id,
                                     candidate: event.candidate,
-                                    to: listener
+                                    roomId: this.roomCode
                                 });
                             }
                         };
                         
                         // Create and send offer
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-                        
-                        this.socket.emit('sdp-offer', {
-                            roomId: this.roomCode,
-                            offer: offer,
-                            to: listener
-                        });
-                        
-                        this.peerConnections.set(listener, pc);
+                        try {
+                            const offer = await pc.createOffer({
+                                offerToReceiveAudio: false,
+                                offerToReceiveVideo: false
+                            });
+                            
+                            await pc.setLocalDescription(offer);
+                            
+                            this.socket.emit('webrtc-offer', {
+                                to: listener.id,
+                                offer: offer,
+                                roomId: this.roomCode
+                            });
+                            
+                            this.peerConnections.set(listener.id, pc);
+                            
+                        } catch (error) {
+                            console.error('Error creating peer connection:', error);
+                        }
                     }
                 },
                 
-                stopStreaming() {
+                async stopStreaming() {
                     if (this.stream) {
-                        this.stream.getTracks().forEach(track => track.stop());
+                        // Stop all tracks
+                        this.stream.getTracks().forEach(track => {
+                            track.stop();
+                        });
                         this.stream = null;
                     }
                     
+                    // Clear preview
                     this.$refs.previewVideo.srcObject = null;
-                    this.isStreaming = false;
                     
                     // Close all peer connections
                     this.peerConnections.forEach(pc => pc.close());
                     this.peerConnections.clear();
                     
-                    this.updateStatus('Streaming dihentikan', 'bg-gray-100 text-gray-700');
+                    // Update status
+                    this.isStreaming = false;
+                    this.hasAudio = false;
+                    this.hasVideo = false;
+                    this.statusMessage = 'Streaming dihentikan. Klik "Start Streaming" untuk mulai lagi.';
+                    
+                    // Notify server
+                    this.socket.emit('stop-streaming', this.roomCode);
                 },
                 
                 copyRoomCode() {
                     navigator.clipboard.writeText(this.roomCode);
-                    alert(`Kode room ${this.roomCode} disalin!`);
+                    alert(`Kode room "${this.roomCode}" disalin!`);
                 },
                 
-                updateStatus(message, description = '', className = 'bg-blue-100 text-blue-700') {
-                    this.statusMessage = message;
-                    this.statusDescription = description || this.statusDescription;
-                    this.statusClass = className;
+                copyInviteLink() {
+                    const link = `${window.location.origin}/receiver?room=${this.roomCode}`;
+                    navigator.clipboard.writeText(link);
+                    alert('Link undangan disalin!');
+                },
+                
+                copyRoomLink() {
+                    this.copyInviteLink();
+                },
+                
+                sendMessage() {
+                    if (!this.chatMessage.trim()) return;
+                    
+                    this.socket.emit('send-message', {
+                        roomId: this.roomCode,
+                        message: this.chatMessage,
+                        sender: this.hostName
+                    });
+                    
+                    this.chatMessage = '';
+                },
+                
+                refreshListeners() {
+                    this.socket.emit('get-room-info', this.roomCode);
+                },
+                
+                leaveRoom() {
+                    if (confirm('Apakah Anda yakin ingin meninggalkan room? Semua pendengar akan terputus.')) {
+                        this.stopStreaming();
+                        window.location.href = '/';
+                    }
+                },
+                
+                formatTime(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 }
             }
         }

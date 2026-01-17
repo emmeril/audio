@@ -1,82 +1,445 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Stream App - Home</title>
+    <title>AudioStream - Streaming Audio Bersama</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body {
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+        }
+        .card-glass {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
         }
     </style>
 </head>
-<body>
-    <div x-data="app()" class="min-h-screen flex items-center justify-center p-4">
-        <div class="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md w-full">
-            <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">
-                    🎵 Audio Stream App
-                </h1>
-                <p class="text-gray-600">
-                    Streaming audio dari komputer Anda ke komputer lain
-                </p>
+<body class="h-full gradient-bg">
+    <div x-data="app()" x-init="init()" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <nav class="bg-white/10 backdrop-blur-sm border-b border-white/20">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-music text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-white">AudioStream</h1>
+                            <p class="text-white/80 text-sm">Streaming audio bersama teman</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="#" class="text-white/80 hover:text-white">
+                            <i class="fas fa-question-circle"></i>
+                        </a>
+                        <a href="#" class="text-white/80 hover:text-white">
+                            <i class="fas fa-cog"></i>
+                        </a>
+                    </div>
+                </div>
             </div>
+        </nav>
 
-            <div class="space-y-6">
-                <div class="bg-blue-50 rounded-xl p-6">
-                    <h2 class="text-xl font-semibold text-blue-800 mb-3 flex items-center">
-                        <span class="mr-2">🎤</span> Jadi Pengirim
+        <!-- Main Content -->
+        <main class="flex-1 container mx-auto px-4 py-12">
+            <div class="max-w-6xl mx-auto">
+                <!-- Hero Section -->
+                <div class="text-center mb-16">
+                    <h2 class="text-5xl font-bold text-white mb-4">
+                        Streaming Audio <span class="text-yellow-300">Mudah</span>
                     </h2>
-                    <p class="text-blue-600 mb-4">
-                        Bagikan layar Anda (dengan audio) dari YouTube Music atau aplikasi musik lainnya
+                    <p class="text-xl text-white/80 max-w-2xl mx-auto">
+                        Bagikan audio dari YouTube Music, Spotify, atau aplikasi musik lainnya ke teman-teman Anda
                     </p>
-                    <a href="/sender" 
-                       class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center">
-                        <span class="mr-2">▶️</span> Mulai Streaming
-                    </a>
                 </div>
 
-                <div class="bg-purple-50 rounded-xl p-6">
-                    <h2 class="text-xl font-semibold text-purple-800 mb-3 flex items-center">
-                        <span class="mr-2">🔊</span> Jadi Penerima
-                    </h2>
-                    <p class="text-purple-600 mb-4">
-                        Dengarkan audio dari komputer pengirim
-                    </p>
-                    <div class="space-y-3">
-                        <input x-model="roomCode" 
-                               type="text" 
-                               placeholder="Masukkan Kode Room"
-                               class="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
-                        <button @click="joinRoom()"
-                                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200">
-                            🎧 Gabung Room
-                        </button>
+                <!-- Features Grid -->
+                <div class="grid md:grid-cols-3 gap-8 mb-16">
+                    <div class="card-glass rounded-2xl p-8 text-center">
+                        <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-share-alt text-purple-600 text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800 mb-3">Share Screen</h3>
+                        <p class="text-gray-600">
+                            Bagikan layar Anda dengan audio dari tab Chrome yang sedang memutar musik
+                        </p>
+                    </div>
+                    
+                    <div class="card-glass rounded-2xl p-8 text-center">
+                        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-headphones text-blue-600 text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800 mb-3">Dengarkan Bersama</h3>
+                        <p class="text-gray-600">
+                            Multiple listener bisa bergabung dan mendengarkan audio yang sama
+                        </p>
+                    </div>
+                    
+                    <div class="card-glass rounded-2xl p-8 text-center">
+                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <i class="fas fa-bolt text-green-600 text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-800 mb-3">Real-time</h3>
+                        <p class="text-gray-600">
+                            Streaming dengan latensi rendah menggunakan teknologi WebRTC
+                        </p>
                     </div>
                 </div>
 
-                <div class="text-center text-sm text-gray-500 mt-4">
-                    <p>Gunakan Chrome browser untuk pengalaman terbaik</p>
-                    <p class="mt-1">Pastikan izin audio dan mikrofon diaktifkan</p>
+                <!-- Action Cards -->
+                <div class="grid lg:grid-cols-2 gap-8">
+                    <!-- Host Card -->
+                    <div class="card-glass rounded-2xl p-8">
+                        <div class="flex items-center mb-6">
+                            <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mr-4">
+                                <i class="fas fa-broadcast-tower text-white text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-800">Jadi Host</h3>
+                                <p class="text-gray-600">Mulai streaming audio Anda</p>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Nama Anda
+                                </label>
+                                <input x-model="hostName" 
+                                       type="text" 
+                                       placeholder="Masukkan nama Anda"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Kode Room (Opsional)
+                                </label>
+                                <input x-model="roomCode" 
+                                       type="text" 
+                                       placeholder="Biarkan kosong untuk kode random"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                            
+                            <button @click="createRoom()"
+                                    class="w-full btn-primary text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-play mr-3"></i>
+                                Buat Room & Mulai Streaming
+                            </button>
+                        </div>
+                        
+                        <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                            <h4 class="font-semibold text-blue-800 mb-2">
+                                <i class="fas fa-info-circle mr-2"></i>Cara Kerja:
+                            </h4>
+                            <ol class="text-blue-700 text-sm space-y-1">
+                                <li>1. Klik tombol di atas untuk membuat room</li>
+                                <li>2. Buka YouTube Music di tab baru</li>
+                                <li>3. Mulai screen sharing dengan audio</li>
+                                <li>4. Bagikan kode room ke teman</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Listener Card -->
+                    <div class="card-glass rounded-2xl p-8">
+                        <div class="flex items-center mb-6">
+                            <div class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mr-4">
+                                <i class="fas fa-headphones text-white text-xl"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold text-gray-800">Jadi Listener</h3>
+                                <p class="text-gray-600">Bergabung dengan room host</p>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Nama Anda
+                                </label>
+                                <input x-model="listenerName" 
+                                       type="text" 
+                                       placeholder="Masukkan nama Anda"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Kode Room
+                                </label>
+                                <div class="flex space-x-2">
+                                    <input x-model="joinRoomCode" 
+                                           type="text" 
+                                           placeholder="Masukkan kode room"
+                                           class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                    <button @click="generateRandomCode()"
+                                            class="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">
+                                        <i class="fas fa-random"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <button @click="joinRoom()"
+                                    class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-sign-in-alt mr-3"></i>
+                                Bergabung ke Room
+                            </button>
+                        </div>
+                        
+                        <div class="mt-6">
+                            <h4 class="font-semibold text-gray-800 mb-4">
+                                <i class="fas fa-list mr-2"></i>Room Aktif
+                            </h4>
+                            <div class="space-y-3">
+                                <template x-for="room in activeRooms" :key="room.roomId">
+                                    <div @click="selectRoom(room)"
+                                         class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition">
+                                        <div class="flex justify-between items-center">
+                                            <div>
+                                                <p class="font-semibold text-gray-800" x-text="room.hostName"></p>
+                                                <p class="text-sm text-gray-600">
+                                                    Room: <span class="font-mono" x-text="room.roomId"></span>
+                                                </p>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="flex items-center justify-end mb-1">
+                                                    <i class="fas fa-users text-gray-400 text-sm mr-1"></i>
+                                                    <span class="text-sm font-semibold" x-text="room.totalListeners"></span>
+                                                </div>
+                                                <span class="text-xs px-2 py-1 rounded-full"
+                                                      :class="room.isStreaming ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'"
+                                                      x-text="room.isStreaming ? 'Live' : 'Offline'">
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                                
+                                <div x-show="activeRooms.length === 0" 
+                                     class="text-center py-8 text-gray-500">
+                                    <i class="fas fa-inbox text-4xl mb-3"></i>
+                                    <p>Tidak ada room aktif</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Browser Requirements -->
+                <div class="mt-12 card-glass rounded-2xl p-8">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                        Persyaratan Browser
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="p-4 bg-yellow-50 rounded-lg">
+                            <div class="flex items-center mb-3">
+                                <i class="fab fa-chrome text-blue-600 text-2xl mr-3"></i>
+                                <div>
+                                    <h4 class="font-bold text-gray-800">Google Chrome</h4>
+                                    <p class="text-sm text-gray-600">Versi 89+ direkomendasikan</p>
+                                </div>
+                            </div>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>✓ Dukung screen sharing dengan audio</li>
+                                <li>✓ Dukung WebRTC terbaru</li>
+                                <li>✓ Stabilitas terbaik</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <div class="flex items-center mb-3">
+                                <i class="fas fa-tools text-blue-600 text-2xl mr-3"></i>
+                                <div>
+                                    <h4 class="font-bold text-gray-800">Pengaturan Chrome</h4>
+                                    <p class="text-sm text-gray-600">Pastikan sudah benar</p>
+                                </div>
+                            </div>
+                            <ul class="text-sm text-gray-700 space-y-1">
+                                <li>✓ Izinkan akses mikrofon</li>
+                                <li>✓ Izinkan screen sharing</li>
+                                <li>✓ Pilih "Share audio" saat sharing</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-white/10 backdrop-blur-sm border-t border-white/20">
+            <div class="container mx-auto px-4 py-6">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="mb-4 md:mb-0">
+                        <p class="text-white/80">
+                            <i class="fas fa-code mr-2"></i>
+                            Dibuat dengan Node.js, Express, Alpine.js & Tailwind CSS
+                        </p>
+                    </div>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-white/80 hover:text-white">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="#" class="text-white/80 hover:text-white">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="text-white/80 hover:text-white">
+                            <i class="fas fa-question-circle"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <p class="text-white/60 text-sm">
+                        © 2024 AudioStream. Untuk penggunaan personal.
+                    </p>
+                </div>
+            </div>
+        </footer>
     </div>
 
     <script>
         function app() {
             return {
+                socket: null,
+                hostName: '',
                 roomCode: '',
+                listenerName: '',
+                joinRoomCode: '',
+                activeRooms: [],
+                
+                init() {
+                    // Load saved names from localStorage
+                    this.hostName = localStorage.getItem('hostName') || '';
+                    this.listenerName = localStorage.getItem('listenerName') || '';
+                    
+                    // Connect to socket
+                    this.socket = io();
+                    
+                    // Load active rooms
+                    this.loadActiveRooms();
+                    
+                    // Refresh rooms every 10 seconds
+                    setInterval(() => {
+                        this.loadActiveRooms();
+                    }, 10000);
+                },
+                
+                async loadActiveRooms() {
+                    try {
+                        const response = await fetch('/api/rooms');
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.activeRooms = data.rooms;
+                        }
+                    } catch (error) {
+                        console.error('Error loading rooms:', error);
+                    }
+                },
+                
+                createRoom() {
+                    if (!this.hostName.trim()) {
+                        alert('Masukkan nama Anda terlebih dahulu');
+                        return;
+                    }
+                    
+                    // Save name to localStorage
+                    localStorage.setItem('hostName', this.hostName);
+                    
+                    const roomData = {
+                        username: this.hostName,
+                        roomId: this.roomCode || null
+                    };
+                    
+                    this.socket.emit('create-room', roomData);
+                    
+                    this.socket.once('room-created', (data) => {
+                        // Redirect to sender page with room info
+                        window.location.href = `/sender?room=${data.roomId}&name=${encodeURIComponent(this.hostName)}`;
+                    });
+                    
+                    this.socket.once('room-error', (error) => {
+                        alert(`Error: ${error.message}`);
+                    });
+                },
                 
                 joinRoom() {
-                    if (this.roomCode.trim()) {
-                        window.location.href = `/receiver?room=${this.roomCode.trim()}`;
-                    } else {
+                    if (!this.listenerName.trim()) {
+                        alert('Masukkan nama Anda terlebih dahulu');
+                        return;
+                    }
+                    
+                    if (!this.joinRoomCode.trim()) {
                         alert('Masukkan kode room terlebih dahulu');
+                        return;
+                    }
+                    
+                    // Save name to localStorage
+                    localStorage.setItem('listenerName', this.listenerName);
+                    
+                    const roomData = {
+                        roomId: this.joinRoomCode.toUpperCase(),
+                        username: this.listenerName
+                    };
+                    
+                    // First check if room exists
+                    fetch(`/api/room/${roomData.roomId}`)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Room tidak ditemukan');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                // Redirect to receiver page
+                                window.location.href = `/receiver?room=${roomData.roomId}&name=${encodeURIComponent(this.listenerName)}`;
+                            } else {
+                                alert(data.message);
+                            }
+                        })
+                        .catch(error => {
+                            alert(`Error: ${error.message}`);
+                        });
+                },
+                
+                generateRandomCode() {
+                    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                    let code = '';
+                    for (let i = 0; i < 6; i++) {
+                        code += chars.charAt(Math.floor(Math.random() * chars.length));
+                    }
+                    this.joinRoomCode = code;
+                },
+                
+                selectRoom(room) {
+                    this.joinRoomCode = room.roomId;
+                    if (!this.listenerName) {
+                        this.listenerName = `Listener_${Math.floor(Math.random() * 1000)}`;
                     }
                 }
             }
