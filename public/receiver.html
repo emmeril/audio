@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Stream - Penerima</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-gradient-to-br from-purple-50 to-pink-50 min-h-screen">
+    <div x-data="receiverApp()" x-init="init()" class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">🔊 Penerima Audio</h1>
+                <p class="text-gray-600">Dengarkan audio dari komputer pengirim</p>
+            </div>
+            <a href="/" class="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition">
+                ← Kembali
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Control Panel -->
+            <div class="bg-white rounded-2xl shadow-xl p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <span class="mr-2">🎧</span> Kontrol Audio
+                </h2>
+
+                <!-- Room Connection -->
+                <div class="mb-6" x-show="!isConnected">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Masukkan Kode Room:
+                    </label>
+                    <div class="flex space-x-2">
+                        <input x-model="roomCode" 
+                               type="text" 
+                               placeholder="Contoh: ABC123"
+                               class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <button @click="joinRoom()"
+                                class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+                            Gabung
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">
+                        Minta kode room dari pengirim
+                    </p>
+                </div>
+
+                <!-- Connected Status -->
+                <div class="mb-6 p-4 rounded-lg" :class="statusClass" x-show="isConnected">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-semibold" x-text="statusMessage"></p>
+                            <p class="text-sm" x-text="roomInfo"></p>
+                        </div>
+                        <div class="w-3 h-3 rounded-full animate-pulse" 
+                             :class="isConnected ? 'bg-green-500' : 'bg-red-500'"></div>
+                    </div>
+                </div>
+
+                <!-- Audio Controls -->
+                <div class="space-y-4" x-show="isConnected">
+                    <div class="p-4 bg-purple-50 rounded-lg">
+                        <label class="block text-sm font-medium text-purple-700 mb-2">
+                            🔊 Volume: <span x-text="volume"></span>%
+                        </label>
+                        <input type="range" 
+                               x-model="volume" 
+                               @input="updateVolume($event.target.value)"
+                               min="0" 
+                               max="100" 
+                               class="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <div class="flex space-x-2">
+                        <button @click="toggleAudio()"
+                                :class="isAudioPlaying ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
+                                class="flex-1 text-white font-semibold py-3 px-4 rounded-lg transition duration-200">
+                            <span x-text="isAudioPlaying ? '⏸️ Jeda Audio' : '▶️ Putar Audio'"></span>
+                        </button>
+                        
+                        <button @click="leaveRoom()"
+                                class="bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-gray-700 transition">
+                            Keluar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h3 class="font-semibold text-blue-800 mb-2">💡 Tips:</h3>
+                    <ul class="text-blue-700 text-sm space-y-1">
+                        <li>• Pastikan speaker/mikrofon tidak di-mute</li>
+                        <li>• Gunakan headphone untuk pengalaman terbaik</li>
+                        <li>• Refresh halaman jika audio terputus</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Status & Info -->
+            <div class="space-y-8">
+                <!-- Audio Visualization -->
+                <div class="bg-white rounded-2xl shadow-xl p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">📊 Visualisasi Audio</h2>
+                    <div class="h-48 bg-gray-900 rounded-lg flex items-end justify-center space-x-1 p-4">
+                        <template x-for="bar in audioBars" :key="bar.id">
+                            <div class="w-4 bg-gradient-to-t from-green-400 to-blue-500 rounded-t"
+                                 :style="`height: ${bar.height}%`"></div>
+                        </template>
+                    </div>
+                    <audio x-ref="audioElement" 
+                           autoplay
+                           class="w-full mt-4"
+                           controls>
+                        Browser Anda tidak mendukung elemen audio.
+                    </audio>
+                </div>
+
+                <!-- Connection Info -->
+                <div class="bg-white rounded-2xl shadow-xl p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">ℹ️ Informasi Koneksi</h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-gray-700">Status Koneksi:</span>
+                            <span class="font-semibold" :class="isConnected ? 'text-green-600' : 'text-red-600'"
+                                  x-text="isConnected ? 'Terhubung' : 'Terputus'"></span>
+                        </div>
+                        
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-gray-700">Kode Room:</span>
+                            <span class="font-semibold text-purple-600" x-text="roomCode || '-'"></span>
+                        </div>
+                        
+                        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                            <span class="text-gray-700">Kualitas Audio:</span>
+                            <span class="font-semibold" :class="{
+                                'text-green-600': connectionQuality === 'Baik',
+                                'text-yellow-600': connectionQuality === 'Sedang',
+                                'text-red-600': connectionQuality === 'Buruk'
+                            }" x-text="connectionQuality"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function receiverApp() {
+            return {
+                socket: null,
+                roomCode: '',
+                isConnected: false,
+                isAudioPlaying: false,
+                volume: 80,
+                peerConnection: null,
+                audioStream: null,
+                
+                statusMessage: 'Masukkan kode room untuk bergabung',
+                statusClass: 'bg-gray-100 text-gray-700',
+                roomInfo: '',
+                connectionQuality: 'Baik',
+                
+                audioBars: Array.from({length: 20}, (_, i) => ({
+                    id: i,
+                    height: Math.random() * 30 + 10
+                })),
+                
+                init() {
+                    // Get room code from URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const roomParam = urlParams.get('room');
+                    if (roomParam) {
+                        this.roomCode = roomParam;
+                        this.joinRoom();
+                    }
+                    
+                    // Animate audio bars
+                    setInterval(() => {
+                        if (this.isAudioPlaying) {
+                            this.audioBars = this.audioBars.map(bar => ({
+                                ...bar,
+                                height: Math.random() * 50 + 20
+                            }));
+                        }
+                    }, 200);
+                },
+                
+                async joinRoom() {
+                    if (!this.roomCode.trim()) {
+                        this.updateStatus('Masukkan kode room terlebih dahulu', 'bg-red-100 text-red-700');
+                        return;
+                    }
+                    
+                    this.socket = io();
+                    
+                    this.socket.emit('join-room', this.roomCode.trim());
+                    
+                    this.socket.on('room-joined', (roomId) => {
+                        this.isConnected = true;
+                        this.updateStatus(`Terhubung ke room: ${roomId}`, 'bg-green-100 text-green-700');
+                        this.roomInfo = 'Menunggu pengirim mulai streaming...';
+                    });
+                    
+                    this.socket.on('sdp-offer', async (data) => {
+                        await this.handleOffer(data.offer, data.senderId);
+                    });
+                    
+                    this.socket.on('ice-candidate', async (data) => {
+                        if (this.peerConnection) {
+                            await this.peerConnection.addIceCandidate(
+                                new RTCIceCandidate(data.candidate)
+                            );
+                        }
+                    });
+                    
+                    this.socket.on('host-disconnected', () => {
+                        this.updateStatus('Pengirim telah keluar', 'bg-red-100 text-red-700');
+                        this.isConnected = false;
+                        if (this.peerConnection) {
+                            this.peerConnection.close();
+                        }
+                    });
+                    
+                    this.socket.on('error', (error) => {
+                        this.updateStatus(`Error: ${error}`, 'bg-red-100 text-red-700');
+                    });
+                },
+                
+                async handleOffer(offer, senderId) {
+                    try {
+                        const configuration = {
+                            iceServers: [
+                                { urls: 'stun:stun.l.google.com:19302' },
+                                { urls: 'stun:global.stun.twilio.com:3478' }
+                            ]
+                        };
+                        
+                        this.peerConnection = new RTCPeerConnection(configuration);
+                        
+                        // Handle incoming stream
+                        this.peerConnection.ontrack = (event) => {
+                            this.$refs.audioElement.srcObject = event.streams[0];
+                            this.audioStream = event.streams[0];
+                            this.isAudioPlaying = true;
+                            this.updateStatus('Audio streaming aktif!', 'bg-green-100 text-green-700');
+                        };
+                        
+                        // Handle ICE candidates
+                        this.peerConnection.onicecandidate = (event) => {
+                            if (event.candidate) {
+                                this.socket.emit('ice-candidate', {
+                                    roomId: this.roomCode,
+                                    candidate: event.candidate,
+                                    to: senderId
+                                });
+                            }
+                        };
+                        
+                        await this.peerConnection.setRemoteDescription(
+                            new RTCSessionDescription(offer)
+                        );
+                        
+                        const answer = await this.peerConnection.createAnswer();
+                        await this.peerConnection.setLocalDescription(answer);
+                        
+                        this.socket.emit('sdp-answer', {
+                            roomId: this.roomCode,
+                            answer: answer,
+                            to: senderId
+                        });
+                        
+                    } catch (error) {
+                        console.error('Error handling offer:', error);
+                        this.updateStatus(`Error: ${error.message}`, 'bg-red-100 text-red-700');
+                    }
+                },
+                
+                updateVolume(value) {
+                    this.volume = value;
+                    if (this.$refs.audioElement) {
+                        this.$refs.audioElement.volume = value / 100;
+                    }
+                },
+                
+                toggleAudio() {
+                    this.isAudioPlaying = !this.isAudioPlaying;
+                    if (this.$refs.audioElement) {
+                        if (this.isAudioPlaying) {
+                            this.$refs.audioElement.play();
+                        } else {
+                            this.$refs.audioElement.pause();
+                        }
+                    }
+                },
+                
+                leaveRoom() {
+                    if (this.socket) {
+                        this.socket.disconnect();
+                    }
+                    if (this.peerConnection) {
+                        this.peerConnection.close();
+                    }
+                    this.isConnected = false;
+                    this.isAudioPlaying = false;
+                    this.updateStatus('Telah keluar dari room', 'bg-gray-100 text-gray-700');
+                },
+                
+                updateStatus(message, className = 'bg-blue-100 text-blue-700') {
+                    this.statusMessage = message;
+                    this.statusClass = className;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

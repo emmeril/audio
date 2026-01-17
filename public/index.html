@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Stream App - Home</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div x-data="app()" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md w-full">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                    🎵 Audio Stream App
+                </h1>
+                <p class="text-gray-600">
+                    Streaming audio dari komputer Anda ke komputer lain
+                </p>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-blue-50 rounded-xl p-6">
+                    <h2 class="text-xl font-semibold text-blue-800 mb-3 flex items-center">
+                        <span class="mr-2">🎤</span> Jadi Pengirim
+                    </h2>
+                    <p class="text-blue-600 mb-4">
+                        Bagikan layar Anda (dengan audio) dari YouTube Music atau aplikasi musik lainnya
+                    </p>
+                    <a href="/sender" 
+                       class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center">
+                        <span class="mr-2">▶️</span> Mulai Streaming
+                    </a>
+                </div>
+
+                <div class="bg-purple-50 rounded-xl p-6">
+                    <h2 class="text-xl font-semibold text-purple-800 mb-3 flex items-center">
+                        <span class="mr-2">🔊</span> Jadi Penerima
+                    </h2>
+                    <p class="text-purple-600 mb-4">
+                        Dengarkan audio dari komputer pengirim
+                    </p>
+                    <div class="space-y-3">
+                        <input x-model="roomCode" 
+                               type="text" 
+                               placeholder="Masukkan Kode Room"
+                               class="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <button @click="joinRoom()"
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200">
+                            🎧 Gabung Room
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-center text-sm text-gray-500 mt-4">
+                    <p>Gunakan Chrome browser untuk pengalaman terbaik</p>
+                    <p class="mt-1">Pastikan izin audio dan mikrofon diaktifkan</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                roomCode: '',
+                
+                joinRoom() {
+                    if (this.roomCode.trim()) {
+                        window.location.href = `/receiver?room=${this.roomCode.trim()}`;
+                    } else {
+                        alert('Masukkan kode room terlebih dahulu');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

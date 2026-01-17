@@ -1,112 +1,103 @@
-const WebSocket = require('ws');
+const express = require('express');
 const http = require('http');
-const fs = require('fs');
+const socketIo = require('socket.io');
+const cors = require('cors');
 const path = require('path');
 
-// HTTP Server untuk serve HTML
-const server = http.createServer((req, res) => {
-    let filePath = '.' + req.url;
-    if (filePath === './') filePath = './sender.html';
+const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Middleware
+app.use(cors());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Store connected users
+const rooms = new Map();
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+
+  // Create or join a room
+  socket.on('join-room', (roomId) => {
+    socket.join(roomId);
     
-    const extname = path.extname(filePath);
-    let contentType = 'text/html';
-    
-    switch (extname) {
-        case '.js': contentType = 'text/javascript'; break;
-        case '.css': contentType = 'text/css'; break;
+    if (!rooms.has(roomId)) {
+      rooms.set(roomId, {
+        host: socket.id,
+        listeners: []
+      });
     }
     
-    fs.readFile(filePath, (error, content) => {
-        if (error) {
-            if(error.code == 'ENOENT') {
-                res.writeHead(404);
-                res.end('File not found');
-            } else {
-                res.writeHead(500);
-                res.end('Server error: ' + error.code);
-            }
-        } else {
-            res.writeHead(200, { 'Content-Type': contentType });
-            res.end(content, 'utf-8');
+    const room = rooms.get(roomId);
+    if (socket.id !== room.host) {
+      room.listeners.push(socket.id);
+    }
+    
+    console.log(`User ${socket.id} joined room ${roomId}`);
+    socket.emit('room-joined', roomId);
+  });
+
+  // Handle SDP offer from sender
+  socket.on('sdp-offer', (data) => {
+    const { roomId, offer } = data;
+    socket.to(roomId).emit('sdp-offer', { offer, senderId: socket.id });
+  });
+
+  // Handle SDP answer from receiver
+  socket.on('sdp-answer', (data) => {
+    const { roomId, answer, to } = data;
+    socket.to(to).emit('sdp-answer', { answer });
+  });
+
+  // Handle ICE candidates
+  socket.on('ice-candidate', (data) => {
+    const { roomId, candidate, to } = data;
+    socket.to(to).emit('ice-candidate', { candidate });
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+    
+    // Clean up rooms
+    for (const [roomId, room] of rooms.entries()) {
+      if (room.host === socket.id) {
+        // Notify all listeners that host disconnected
+        io.to(roomId).emit('host-disconnected');
+        rooms.delete(roomId);
+        break;
+      } else {
+        const listenerIndex = room.listeners.indexOf(socket.id);
+        if (listenerIndex > -1) {
+          room.listeners.splice(listenerIndex, 1);
         }
-    });
+      }
+    }
+  });
 });
 
-// WebSocket Server untuk audio streaming
-const wss = new WebSocket.Server({ server });
-
-const clients = new Set();
-let sender = null;
-
-wss.on('connection', (ws, req) => {
-    console.log('Client connected');
-    
-    // Tentukan apakah ini sender atau receiver
-    ws.isSender = false;
-    
-    ws.on('message', (data) => {
-        // Jika message pertama adalah "sender", tandai sebagai sender
-        if (data.toString() === 'sender') {
-            ws.isSender = true;
-            sender = ws;
-            console.log('Sender connected');
-            return;
-        }
-        
-        // Jika message pertama adalah "receiver", tandai sebagai receiver
-        if (data.toString() === 'receiver') {
-            ws.isSender = false;
-            clients.add(ws);
-            console.log('Receiver connected. Total receivers:', clients.size);
-            
-            // Kirim ack ke receiver
-            ws.send(JSON.stringify({ 
-                type: 'connected', 
-                message: 'Connected to audio stream' 
-            }));
-            return;
-        }
-        
-        // Jika ini audio data dari sender, broadcast ke semua receiver
-        if (ws === sender && ws.isSender) {
-            broadcastToReceivers(data);
-        }
-    });
-    
-    ws.on('close', () => {
-        console.log('Client disconnected');
-        
-        if (ws === sender) {
-            sender = null;
-            console.log('Sender disconnected');
-        } else {
-            clients.delete(ws);
-        }
-    });
-    
-    ws.on('error', (error) => {
-        console.log('WebSocket error:', error);
-    });
+// Routes
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-function broadcastToReceivers(data) {
-    clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(data);
-        }
-    });
-}
+app.get('/sender', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'sender.html'));
+});
 
-// Start server
-const PORT = process.env.PORT || 8080;
+app.get('/receiver', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'receiver.html'));
+});
+
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-    console.log(`🎵 WebSocket: ws://localhost:${PORT}`);
-    console.log(`📱 Sender: http://localhost:${PORT}/sender.html`);
-    console.log(`🎧 Receiver: http://localhost:${PORT}/receiver.html`);
-    console.log('\n📌 INSTRUKSI SINGKAT:');
-    console.log('1. Buka sender.html di komputer yang mau dishare audio-nya');
-    console.log('2. Klik "Start Sharing" (izinkan microphone/audio capture)');
-    console.log('3. Buka receiver.html di komputer lain');
-    console.log('4. Langsung bisa denger!');
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Open http://localhost:${PORT} in your browser`);
 });
