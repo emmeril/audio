@@ -16,17 +16,18 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(cors());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('.'));
 
-// Store connected users
+// Store active rooms
 const rooms = new Map();
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('⚡ New client connected:', socket.id);
 
-  // Create or join a room
+  // Join room
   socket.on('join-room', (roomId, userType) => {
+    roomId = roomId.toUpperCase();
     socket.join(roomId);
     
     if (!rooms.has(roomId)) {
@@ -34,8 +35,8 @@ io.on('connection', (socket) => {
         host: null,
         listeners: new Set(),
         isStreaming: false,
-        hostSocketId: null,
-        createdAt: Date.now()
+        startedAt: null,
+        hostSocketId: null
       });
     }
     
@@ -81,18 +82,20 @@ io.on('connection', (socket) => {
       room.startedAt = Date.now();
       console.log(`🎬 Host started streaming in room ${roomId}`);
       
-      // Notify all listeners that host is streaming
+      // Notify all listeners
       io.to(roomId).emit('host-streaming-started', {
         hostId: socket.id,
         roomId: roomId
       });
       
-      // Broadcast to everyone that a new stream is available
+      // Broadcast new stream
       io.emit('streaming-room-added', {
         roomId: roomId,
         hostId: socket.id,
         listenersCount: room.listeners.size,
-        startedAt: room.startedAt
+        startedAt: room.startedAt,
+        hasVideo: true,
+        hasAudio: true
       });
     }
   });
@@ -104,42 +107,23 @@ io.on('connection', (socket) => {
       room.isStreaming = false;
       console.log(`🛑 Host stopped streaming in room ${roomId}`);
       
-      // Notify all listeners
+      // Notify listeners
       io.to(roomId).emit('host-streaming-stopped', {
         hostId: socket.id,
         roomId: roomId
       });
       
-      // Broadcast that stream ended
+      // Broadcast stream ended
       io.emit('streaming-room-removed', {
         roomId: roomId
       });
     }
   });
 
-  // Get room status
-  socket.on('get-room-status', (roomId) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      socket.emit('room-status', {
-        roomId: roomId,
-        hostId: room.host,
-        isStreaming: room.isStreaming,
-        listenersCount: room.listeners.size,
-        listeners: Array.from(room.listeners)
-      });
-    } else {
-      socket.emit('room-status', {
-        roomId: roomId,
-        error: 'Room not found'
-      });
-    }
-  });
-
-  // Handle SDP offer from sender
+  // Handle SDP offer
   socket.on('sdp-offer', (data) => {
     const { roomId, offer, to } = data;
-    console.log(`📤 Sending SDP offer from ${socket.id} to ${to}`);
+    console.log(`📤 SDP offer from ${socket.id} to ${to}`);
     socket.to(to).emit('sdp-offer', { 
       offer: offer,
       senderId: socket.id,
@@ -147,10 +131,10 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Handle SDP answer from receiver
+  // Handle SDP answer
   socket.on('sdp-answer', (data) => {
     const { roomId, answer, to } = data;
-    console.log(`📥 Sending SDP answer to ${to}`);
+    console.log(`📥 SDP answer to ${to}`);
     socket.to(to).emit('sdp-answer', { 
       answer: answer,
       roomId: roomId
@@ -166,21 +150,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Request connection from listener
-  socket.on('request-connection', (data) => {
-    const { roomId, listenerId } = data;
-    const room = rooms.get(roomId);
-    
-    if (room && room.host) {
-      console.log(`🔗 ${listenerId} requesting connection from host ${room.host}`);
-      io.to(room.host).emit('connection-requested', {
-        listenerId: listenerId,
-        roomId: roomId
-      });
-    }
-  });
-
-  // Get active streaming rooms
+  // Get active streams
   socket.on('get-active-streams', () => {
     const activeRooms = [];
     
@@ -191,8 +161,9 @@ io.on('connection', (socket) => {
           hostId: room.host,
           isStreaming: room.isStreaming,
           listenersCount: room.listeners.size,
-          startedAt: room.startedAt || Date.now(),
-          createdAt: room.createdAt
+          startedAt: room.startedAt,
+          hasVideo: true,
+          hasAudio: true
         });
       }
     }
@@ -210,28 +181,25 @@ io.on('connection', (socket) => {
     // Clean up rooms
     for (const [roomId, room] of rooms.entries()) {
       if (room.host === socket.id) {
-        // Notify all listeners that host disconnected
+        // Host disconnected
         io.to(roomId).emit('host-disconnected', {
           roomId: roomId,
           hostId: socket.id
         });
         
-        // Broadcast that stream ended
         if (room.isStreaming) {
           io.emit('streaming-room-removed', {
             roomId: roomId
           });
         }
         
-        // Clean up room
         rooms.delete(roomId);
-        console.log(`🗑️  Room ${roomId} deleted (host disconnected)`);
+        console.log(`🗑️ Room ${roomId} deleted (host disconnected)`);
         break;
         
       } else if (room.listeners.has(socket.id)) {
         room.listeners.delete(socket.id);
         
-        // Notify host about listener leaving
         if (room.host) {
           io.to(room.host).emit('listener-left', {
             listenerId: socket.id,
@@ -247,38 +215,10 @@ io.on('connection', (socket) => {
 
 // Routes
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.get('/sender', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'sender.html'));
-});
-
-app.get('/receiver', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'receiver.html'));
-});
-
-app.get('/api/room/:roomId/status', (req, res) => {
-  const roomId = req.params.roomId;
-  const room = rooms.get(roomId);
-  
-  if (room) {
-    res.json({
-      exists: true,
-      hostId: room.host,
-      isStreaming: room.isStreaming,
-      listenersCount: room.listeners.size,
-      startedAt: room.startedAt,
-      createdAt: room.createdAt
-    });
-  } else {
-    res.json({
-      exists: false
-    });
-  }
-});
-
-// New endpoint: Get active streaming rooms
+// API endpoints
 app.get('/api/rooms/active', (req, res) => {
   const activeRooms = [];
   
@@ -289,8 +229,7 @@ app.get('/api/rooms/active', (req, res) => {
         hostId: room.host,
         isStreaming: room.isStreaming,
         listenersCount: room.listeners.size,
-        startedAt: room.startedAt || Date.now(),
-        createdAt: room.createdAt
+        startedAt: room.startedAt
       });
     }
   }
@@ -302,7 +241,6 @@ app.get('/api/rooms/active', (req, res) => {
   });
 });
 
-// New endpoint: Get server statistics
 app.get('/api/stats', (req, res) => {
   const totalRooms = rooms.size;
   let totalListeners = 0;
@@ -330,6 +268,4 @@ const PORT = process.env.PORT || 9631;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Open http://localhost:${PORT} in your browser`);
-  console.log(`📱 Sender: http://localhost:${PORT}/sender`);
-  console.log(`🎧 Receiver: http://localhost:${PORT}/receiver`);
 });
