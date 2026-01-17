@@ -231,7 +231,7 @@ app.get('/api/room/:roomId/status', (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 9631;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Open http://localhost:${PORT} in your browser`);
