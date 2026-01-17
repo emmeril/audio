@@ -544,7 +544,7 @@
                     }
                 },
                 
-                // Start streaming
+                // Start streaming - DIPERBAIKI
                 async startStreaming() {
                     if (this.isStreaming || this.isLoading) return;
                     
@@ -552,64 +552,146 @@
                     this.updateStatus('Menyiapkan streaming...', 'bg-blue-500', 'Meminta izin screen sharing...');
                     
                     try {
-                        // Request screen sharing with audio
-                        const constraints = {
-                            video: {
-                                displaySurface: 'browser',
-                                logicalSurface: true
-                            },
-                            audio: {
-                                echoCancellation: false,
-                                noiseSuppression: false,
-                                autoGainControl: false,
-                                sampleRate: 44100,
-                                channelCount: 2
-                            }
-                        };
+                        console.log('🎬 Requesting screen share...');
                         
-                        console.log('🎬 Requesting screen share with constraints:', constraints);
+                        let stream;
+                        const isChrome = navigator.userAgent.includes('Chrome');
                         
-                        // Chrome-specific audio capture
-                        if (navigator.userAgent.includes('Chrome')) {
-                            // Try different approaches for Chrome
-                            try {
-                                this.stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-                            } catch (error) {
-                                console.log('Trying alternative constraints...');
-                                // Fallback to simpler constraints
-                                this.stream = await navigator.mediaDevices.getDisplayMedia({
+                        // Method 1: Coba dengan preferensi yang berbeda
+                        try {
+                            if (isChrome) {
+                                // Chrome-specific dengan preferensi untuk audio tab
+                                stream = await navigator.mediaDevices.getDisplayMedia({
+                                    video: {
+                                        displaySurface: 'browser',
+                                        cursor: 'always'
+                                    },
+                                    audio: {
+                                        echoCancellation: false,
+                                        noiseSuppression: false,
+                                        autoGainControl: false,
+                                        sampleRate: 48000,
+                                        channelCount: 2
+                                    },
+                                    systemAudio: 'include' // Chrome-specific
+                                });
+                            } else {
+                                // Firefox dan browser lain
+                                stream = await navigator.mediaDevices.getDisplayMedia({
                                     video: true,
                                     audio: true
                                 });
                             }
-                        } else {
-                            // For other browsers
-                            this.stream = await navigator.mediaDevices.getDisplayMedia({
+                        } catch (error1) {
+                            console.log('Method 1 failed:', error1);
+                            
+                            // Method 2: Coba tanpa spesifikasi
+                            stream = await navigator.mediaDevices.getDisplayMedia({
                                 video: true,
                                 audio: true
                             });
                         }
                         
-                        // Check if we got audio
-                        const audioTracks = this.stream.getAudioTracks();
-                        if (audioTracks.length === 0) {
-                            throw new Error('Tidak mendapatkan audio. Pastikan Anda mencentang "Share audio"');
+                        // Debug: Check what we got
+                        console.log('✅ Display stream obtained');
+                        console.log('Video tracks:', stream.getVideoTracks().length);
+                        console.log('Audio tracks:', stream.getAudioTracks().length);
+                        
+                        // Jika tidak ada audio track, coba tambahkan audio system
+                        if (stream.getAudioTracks().length === 0) {
+                            console.warn('⚠️ No audio tracks in display stream! Trying to add system audio...');
+                            
+                            try {
+                                // Coba capture audio system secara terpisah
+                                const audioConstraints = {
+                                    audio: {
+                                        mandatory: {
+                                            chromeMediaSource: 'desktop',
+                                            chromeMediaSourceId: stream.getVideoTracks()[0]?.getSettings()?.deviceId
+                                        }
+                                    },
+                                    video: false
+                                };
+                                
+                                let systemAudioStream;
+                                if (isChrome) {
+                                    systemAudioStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+                                } else {
+                                    // Fallback untuk browser lain
+                                    systemAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                                }
+                                
+                                if (systemAudioStream.getAudioTracks().length > 0) {
+                                    systemAudioStream.getAudioTracks().forEach(track => {
+                                        stream.addTrack(track);
+                                        console.log('✅ Added system audio track:', track);
+                                    });
+                                }
+                            } catch (audioError) {
+                                console.error('Failed to add system audio:', audioError);
+                            }
                         }
                         
-                        this.audioTracksCount = audioTracks.length;
-                        console.log('✅ Got stream with audio tracks:', audioTracks.length);
+                        // Cek lagi setelah percobaan
+                        const finalAudioTracks = stream.getAudioTracks();
+                        if (finalAudioTracks.length === 0) {
+                            // Coba terakhir: gunakan microphone sebagai fallback
+                            try {
+                                const micStream = await navigator.mediaDevices.getUserMedia({ 
+                                    audio: {
+                                        echoCancellation: false,
+                                        noiseSuppression: false,
+                                        autoGainControl: false
+                                    }, 
+                                    video: false 
+                                });
+                                
+                                micStream.getAudioTracks().forEach(track => {
+                                    stream.addTrack(track);
+                                    console.log('✅ Added microphone audio as fallback:', track);
+                                });
+                            } catch (micError) {
+                                console.error('Microphone fallback failed:', micError);
+                                throw new Error('Tidak mendapatkan audio. Pastikan centang "Share audio" saat screen sharing');
+                            }
+                        }
                         
-                        // Show preview
+                        // Log final track information
+                        const audioTracks = stream.getAudioTracks();
+                        this.audioTracksCount = audioTracks.length;
+                        
+                        audioTracks.forEach((track, index) => {
+                            console.log(`Audio Track ${index}:`, {
+                                enabled: track.enabled,
+                                muted: track.muted,
+                                readyState: track.readyState,
+                                label: track.label,
+                                kind: track.kind,
+                                settings: track.getSettings()
+                            });
+                            
+                            // Pastikan track diaktifkan
+                            track.enabled = true;
+                        });
+                        
+                        // Simpan stream
+                        this.stream = stream;
+                        
+                        // Tampilkan preview
                         this.$refs.previewVideo.srcObject = this.stream;
                         this.isStreaming = true;
                         
                         // Notify server
                         this.socket.emit('host-started-streaming', this.roomCode);
                         
-                        // Create peer connections for all listeners
+                        // Create peer connections for existing listeners
                         await this.createPeerConnectionsForAllListeners();
                         
-                        this.updateStatus('Streaming aktif!', 'bg-green-500', `Audio tracks: ${audioTracks.length}`);
+                        this.updateStatus('Streaming aktif!', 'bg-green-500', 
+                            `${audioTracks.length} audio track(s) aktif. Pendengar: ${this.listeners.size}`);
+                        
+                        // Start monitoring audio tracks
+                        this.startAudioTrackMonitoring();
                         
                     } catch (error) {
                         console.error('❌ Error starting stream:', error);
@@ -630,20 +712,46 @@
                     }
                 },
                 
+                // Monitor audio tracks
+                startAudioTrackMonitoring() {
+                    if (!this.stream) return;
+                    
+                    const checkInterval = setInterval(() => {
+                        if (!this.isStreaming || !this.stream) {
+                            clearInterval(checkInterval);
+                            return;
+                        }
+                        
+                        const audioTracks = this.stream.getAudioTracks();
+                        this.audioTracksCount = audioTracks.length;
+                        
+                        if (audioTracks.length === 0) {
+                            console.warn('⚠️ Audio tracks lost!');
+                            this.updateStatus('Audio track hilang', 'bg-yellow-500', 'Coba mulai ulang streaming');
+                        }
+                    }, 3000);
+                },
+                
                 // Create peer connections for all listeners
                 async createPeerConnectionsForAllListeners() {
+                    if (!this.stream || !this.isStreaming) {
+                        console.warn('Cannot create peer connections: No stream or not streaming');
+                        return;
+                    }
+                    
                     for (const listenerId of this.listeners) {
                         await this.createPeerConnection(listenerId);
                     }
                 },
                 
-                // Create peer connection for a specific listener
+                // Create peer connection for a specific listener - DIPERBAIKI
                 async createPeerConnection(listenerId) {
                     try {
                         // Close existing connection if any
                         const existingPc = this.peerConnections.get(listenerId);
                         if (existingPc) {
                             existingPc.close();
+                            this.peerConnections.delete(listenerId);
                         }
                         
                         const configuration = {
@@ -656,19 +764,43 @@
                             ],
                             iceTransportPolicy: 'all',
                             bundlePolicy: 'max-bundle',
-                            rtcpMuxPolicy: 'require'
+                            rtcpMuxPolicy: 'require',
+                            encodedInsertableStreams: false
                         };
                         
                         const pc = new RTCPeerConnection(configuration);
                         
-                        // Add all tracks from stream
-                        this.stream.getTracks().forEach(track => {
-                            pc.addTrack(track, this.stream);
-                        });
+                        // Tambahkan semua track dari stream
+                        if (this.stream) {
+                            this.stream.getTracks().forEach(track => {
+                                console.log(`Adding ${track.kind} track to peer connection for ${listenerId.substring(0, 8)}`);
+                                
+                                // Pastikan track tidak di-duplicate
+                                if (track.readyState === 'ended') {
+                                    console.warn(`Track ${track.kind} sudah ended, mencari track baru...`);
+                                    return;
+                                }
+                                
+                                try {
+                                    // Gunakan transceiver untuk kontrol yang lebih baik
+                                    const transceiver = pc.addTransceiver(track, {
+                                        direction: 'sendonly',
+                                        streams: [this.stream]
+                                    });
+                                    
+                                    console.log(`Transceiver created for ${track.kind}:`, transceiver);
+                                } catch (addError) {
+                                    console.error(`Error adding ${track.kind} track:`, addError);
+                                }
+                            });
+                        } else {
+                            console.error('No stream available when creating peer connection');
+                            return;
+                        }
                         
                         // ICE candidate handler
                         pc.onicecandidate = (event) => {
-                            if (event.candidate) {
+                            if (event.candidate && this.socket) {
                                 this.socket.emit('ice-candidate', {
                                     roomId: this.roomCode,
                                     candidate: event.candidate,
@@ -680,24 +812,37 @@
                         // ICE connection state change
                         pc.oniceconnectionstatechange = () => {
                             this.connectionStats.iceState = pc.iceConnectionState;
+                            console.log(`ICE state for ${listenerId.substring(0, 8)}:`, pc.iceConnectionState);
                             
                             if (pc.iceConnectionState === 'connected' || 
                                 pc.iceConnectionState === 'completed') {
                                 console.log(`✅ Connected to ${listenerId.substring(0, 8)}`);
                                 this.updateStatus(`Terhubung dengan pendengar`, 'bg-green-500', 
                                     `ID: ${listenerId.substring(0, 8)}...`);
+                                
+                                // Log connection stats
+                                this.logConnectionStats(pc, listenerId);
                             } else if (pc.iceConnectionState === 'failed' ||
-                                     pc.iceConnectionState === 'disconnected' ||
-                                     pc.iceConnectionState === 'closed') {
-                                console.log(`❌ Connection lost with ${listenerId.substring(0, 8)}`);
+                                     pc.iceConnectionState === 'disconnected') {
+                                console.log(`❌ Connection issue with ${listenerId.substring(0, 8)}`);
                                 
-                                // Remove from listeners set
-                                this.listeners.delete(listenerId);
+                                // Coba restart ICE
+                                setTimeout(() => {
+                                    if (pc.iceConnectionState === 'failed' || 
+                                        pc.iceConnectionState === 'disconnected') {
+                                        console.log(`Attempting ICE restart for ${listenerId.substring(0, 8)}`);
+                                        this.restartIce(pc, listenerId);
+                                    }
+                                }, 2000);
+                            } else if (pc.iceConnectionState === 'closed') {
+                                console.log(`Connection closed for ${listenerId.substring(0, 8)}`);
                                 this.peerConnections.delete(listenerId);
-                                
-                                this.updateStatus(`Koneksi terputus`, 'bg-yellow-500', 
-                                    `ID: ${listenerId.substring(0, 8)}...`);
                             }
+                        };
+                        
+                        // ICE gathering state
+                        pc.onicegatheringstatechange = () => {
+                            this.connectionStats.gatheringState = pc.iceGatheringState;
                         };
                         
                         // Signaling state change
@@ -705,19 +850,39 @@
                             this.connectionStats.signalingState = pc.signalingState;
                         };
                         
-                        // Create and send offer
-                        const offer = await pc.createOffer({
-                            offerToReceiveAudio: false,
-                            offerToReceiveVideo: false
-                        });
+                        // Track events
+                        pc.ontrack = (event) => {
+                            console.log('Track event received (should not happen for sender):', event);
+                        };
                         
-                        await pc.setLocalDescription(offer);
+                        // Connection state
+                        pc.onconnectionstatechange = () => {
+                            console.log(`Connection state for ${listenerId}:`, pc.connectionState);
+                        };
                         
-                        this.socket.emit('sdp-offer', {
-                            roomId: this.roomCode,
-                            offer: offer,
-                            to: listenerId
-                        });
+                        // Create and send offer dengan preferensi audio yang jelas
+                        try {
+                            const offer = await pc.createOffer({
+                                offerToReceiveAudio: false,
+                                offerToReceiveVideo: false,
+                                iceRestart: false
+                            });
+                            
+                            await pc.setLocalDescription(offer);
+                            
+                            // Kirim offer ke listener
+                            if (this.socket) {
+                                this.socket.emit('sdp-offer', {
+                                    roomId: this.roomCode,
+                                    offer: offer,
+                                    to: listenerId
+                                });
+                                
+                                console.log(`✅ SDP offer sent to ${listenerId.substring(0, 8)}`);
+                            }
+                        } catch (offerError) {
+                            console.error(`Error creating offer for ${listenerId}:`, offerError);
+                        }
                         
                         // Store connection
                         this.peerConnections.set(listenerId, pc);
@@ -726,19 +891,69 @@
                         
                     } catch (error) {
                         console.error(`❌ Error creating peer connection for ${listenerId}:`, error);
+                        this.updateStatus(`Gagal membuat koneksi ke pendengar`, 'bg-red-500', error.message);
+                    }
+                },
+                
+                // Helper: Restart ICE
+                async restartIce(pc, listenerId) {
+                    try {
+                        const restartOffer = await pc.createOffer({ iceRestart: true });
+                        await pc.setLocalDescription(restartOffer);
+                        
+                        if (this.socket) {
+                            this.socket.emit('sdp-offer', {
+                                roomId: this.roomCode,
+                                offer: restartOffer,
+                                to: listenerId
+                            });
+                            console.log(`ICE restart offer sent to ${listenerId}`);
+                        }
+                    } catch (error) {
+                        console.error(`ICE restart failed for ${listenerId}:`, error);
+                    }
+                },
+                
+                // Helper: Log connection stats
+                async logConnectionStats(pc, listenerId) {
+                    try {
+                        const stats = await pc.getStats();
+                        let audioStats = null;
+                        
+                        stats.forEach(report => {
+                            if (report.type === 'outbound-rtp' && report.kind === 'audio') {
+                                audioStats = report;
+                            }
+                        });
+                        
+                        if (audioStats) {
+                            console.log(`Audio stats for ${listenerId}:`, {
+                                bytesSent: audioStats.bytesSent,
+                                packetsSent: audioStats.packetsSent,
+                                timestamp: audioStats.timestamp
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error getting stats:', error);
                     }
                 },
                 
                 // Stop streaming
                 stopStreaming() {
                     if (this.stream) {
-                        this.stream.getTracks().forEach(track => track.stop());
+                        this.stream.getTracks().forEach(track => {
+                            track.stop();
+                            console.log(`Stopped ${track.kind} track`);
+                        });
                         this.stream = null;
                         this.$refs.previewVideo.srcObject = null;
                     }
                     
                     // Close all peer connections
-                    this.peerConnections.forEach(pc => pc.close());
+                    this.peerConnections.forEach((pc, listenerId) => {
+                        pc.close();
+                        console.log(`Closed peer connection for ${listenerId}`);
+                    });
                     this.peerConnections.clear();
                     
                     this.isStreaming = false;
@@ -815,6 +1030,17 @@
                     console.log('Peer Connections:', this.peerConnections.size);
                     console.log('Audio Tracks:', this.audioTracksCount);
                     console.log('Stream:', this.stream);
+                    
+                    if (this.stream) {
+                        console.log('Stream Tracks:', this.stream.getTracks().map(t => ({
+                            kind: t.kind,
+                            enabled: t.enabled,
+                            muted: t.muted,
+                            readyState: t.readyState,
+                            label: t.label
+                        })));
+                    }
+                    
                     console.groupEnd();
                     
                     this.showNotification('Info debug dicetak ke console', 'info');
@@ -838,8 +1064,31 @@
                 },
                 
                 showNotification(message, type = 'info') {
-                    // Implementation for showing notification
-                    alert(`${type.toUpperCase()}: ${message}`);
+                    // Simple notification
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 z-50 ${
+                        type === 'error' ? 'bg-red-500 text-white' :
+                        type === 'success' ? 'bg-green-500 text-white' :
+                        'bg-blue-500 text-white'
+                    }`;
+                    alertDiv.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="mr-3">${type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️'}</span>
+                            <span>${message}</span>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(alertDiv);
+                    
+                    setTimeout(() => {
+                        alertDiv.style.transform = 'translateX(100%)';
+                        alertDiv.style.opacity = '0';
+                        setTimeout(() => {
+                            if (alertDiv.parentNode) {
+                                document.body.removeChild(alertDiv);
+                            }
+                        }, 300);
+                    }, 3000);
                 }
             };
         }

@@ -273,7 +273,7 @@
                                     <span x-text="isAudioPlaying ? '⏸️ Jeda' : '▶️ Putar'"></span>
                                 </button>
                                 
-                                <button @click="testAudio()"
+                                <button @click="testAudioPlayback()"
                                         class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition">
                                     🔊 Test Audio
                                 </button>
@@ -503,6 +503,11 @@
                 latency: 0,
                 retryCount: 0,
                 
+                // Audio context for analysis
+                audioContext: null,
+                analyser: null,
+                audioDataArray: null,
+                
                 // Initialization
                 async init() {
                     console.log('🎧 Initializing receiver application...');
@@ -525,6 +530,22 @@
                     
                     // Initialize socket connection
                     await this.initializeSocket();
+                    
+                    // Initialize audio context for visualization
+                    this.initializeAudioContext();
+                },
+                
+                // Initialize audio context for visualization
+                initializeAudioContext() {
+                    try {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        this.analyser = this.audioContext.createAnalyser();
+                        this.analyser.fftSize = 256;
+                        this.audioDataArray = new Uint8Array(this.analyser.frequencyBinCount);
+                        console.log('✅ Audio context initialized');
+                    } catch (error) {
+                        console.warn('⚠️ Audio context not available:', error);
+                    }
                 },
                 
                 // Socket initialization
@@ -590,9 +611,11 @@
                             this.showError('Pengirim keluar', 'Room telah ditutup oleh pengirim');
                         });
                         
-                        // Handle SDP offers
+                        // Handle SDP offers - DIPERBAIKI
                         this.socket.on('sdp-offer', async (data) => {
                             console.log('📥 Received SDP offer from:', data.senderId);
+                            console.log('Offer details:', data.offer);
+                            
                             this.hostId = data.senderId;
                             
                             if (!this.peerConnection) {
@@ -602,18 +625,30 @@
                             await this.handleOffer(data.offer);
                         });
                         
-                        // Handle ICE candidates
+                        // Handle SDP answers (just in case)
+                        this.socket.on('sdp-answer', (data) => {
+                            console.log('Received SDP answer:', data);
+                        });
+                        
+                        // Handle ICE candidates - DIPERBAIKI
                         this.socket.on('ice-candidate', async (data) => {
+                            console.log('❄️ Received ICE candidate:', data);
+                            
                             if (this.peerConnection && data.candidate) {
                                 try {
-                                    await this.peerConnection.addIceCandidate(
-                                        new RTCIceCandidate(data.candidate)
-                                    );
-                                    console.log('✅ ICE candidate added');
+                                    const candidate = new RTCIceCandidate(data.candidate);
+                                    await this.peerConnection.addIceCandidate(candidate);
+                                    console.log('✅ ICE candidate added successfully');
                                 } catch (error) {
                                     console.error('❌ Error adding ICE candidate:', error);
+                                    // Continue anyway, some ICE candidates might be redundant
                                 }
                             }
+                        });
+                        
+                        // Connection requested by host
+                        this.socket.on('connection-requested', (data) => {
+                            console.log('Connection requested by host:', data);
                         });
                         
                         // Socket errors
@@ -646,11 +681,17 @@
                     }
                 },
                 
-                // Initialize WebRTC peer connection
+                // Initialize WebRTC peer connection - DIPERBAIKI
                 async initializePeerConnection() {
                     try {
                         this.connectionState = 'connecting';
                         this.updateStatus('Menyiapkan koneksi peer-to-peer...', 'bg-blue-500');
+                        
+                        // Close existing connection if any
+                        if (this.peerConnection) {
+                            this.peerConnection.close();
+                            this.peerConnection = null;
+                        }
                         
                         const configuration = {
                             iceServers: [
@@ -661,41 +702,49 @@
                             ],
                             iceTransportPolicy: 'all',
                             bundlePolicy: 'max-bundle',
-                            rtcpMuxPolicy: 'require'
+                            rtcpMuxPolicy: 'require',
+                            encodedInsertableStreams: false
                         };
                         
                         this.peerConnection = new RTCPeerConnection(configuration);
                         
-                        // Handle incoming audio stream
+                        // Handle incoming tracks - DIPERBAIKI
                         this.peerConnection.ontrack = (event) => {
-                            console.log('🎵 Received audio track:', event.track.kind);
+                            console.log('🎵 Received track event:', event);
+                            console.log('Track kind:', event.track.kind);
+                            console.log('Streams:', event.streams);
+                            console.log('Track details:', {
+                                enabled: event.track.enabled,
+                                muted: event.track.muted,
+                                readyState: event.track.readyState,
+                                kind: event.track.kind,
+                                id: event.track.id,
+                                label: event.track.label
+                            });
                             
                             if (event.streams && event.streams[0]) {
-                                this.audioStream = event.streams[0];
-                                this.$refs.audioElement.srcObject = this.audioStream;
-                                this.isAudioPlaying = true;
-                                this.isConnected = true;
-                                this.connectionStep = 4;
-                                this.updateConnectionProgress();
-                                this.connectionState = 'connected';
+                                const stream = event.streams[0];
+                                console.log('Stream received with tracks:', stream.getTracks().map(t => t.kind));
                                 
-                                this.updateStatus('Audio streaming aktif!', 'bg-green-500', 'Nikmati audio dari pengirim');
-                                this.connectionStatus = 'Audio streaming aktif';
-                                this.connectionQuality = 'Excellent';
+                                // Setup audio element with stream
+                                this.setupAudioStream(stream);
+                            } else if (event.track) {
+                                // Create a new stream with the track
+                                const stream = new MediaStream([event.track]);
+                                console.log('Created new stream from track:', event.track.kind);
                                 
-                                // Start audio level simulation
-                                this.startAudioLevelSimulation();
-                                
-                                // Start connection quality monitoring
-                                this.startConnectionMonitoring();
+                                // Setup audio element with stream
+                                this.setupAudioStream(stream);
                             }
                         };
                         
                         // ICE connection state
                         this.peerConnection.oniceconnectionstatechange = () => {
-                            this.connectionState = this.peerConnection.iceConnectionState;
+                            const state = this.peerConnection.iceConnectionState;
+                            this.connectionState = state;
+                            console.log('ICE connection state changed:', state);
                             
-                            switch(this.peerConnection.iceConnectionState) {
+                            switch(state) {
                                 case 'checking':
                                     this.updateStatus('Mengecek koneksi ICE...', 'bg-blue-500');
                                     this.connectionStatus = 'Establishing connection...';
@@ -705,6 +754,7 @@
                                     this.updateStatus('Koneksi peer berhasil!', 'bg-green-500');
                                     this.connectionStatus = 'Peer connection established';
                                     this.connectionQuality = 'Excellent';
+                                    this.isConnected = true;
                                     break;
                                 case 'disconnected':
                                     this.updateStatus('Koneksi terputus', 'bg-yellow-500');
@@ -721,28 +771,43 @@
                                 case 'closed':
                                     this.updateStatus('Koneksi ditutup', 'bg-gray-500');
                                     this.connectionStatus = 'Connection closed';
+                                    this.isConnected = false;
                                     break;
                             }
                         };
                         
-                        // ICE candidates
+                        // ICE gathering state
+                        this.peerConnection.onicegatheringstatechange = () => {
+                            console.log('ICE gathering state:', this.peerConnection.iceGatheringState);
+                        };
+                        
+                        // ICE candidates - DIPERBAIKI
                         this.peerConnection.onicecandidate = (event) => {
-                            if (event.candidate && this.hostId) {
+                            if (event.candidate && this.hostId && this.socket) {
+                                console.log('Sending ICE candidate to host:', event.candidate);
                                 this.socket.emit('ice-candidate', {
                                     roomId: this.roomCode,
                                     candidate: event.candidate,
                                     to: this.hostId
                                 });
+                            } else if (!event.candidate) {
+                                console.log('✅ ICE gathering complete');
                             }
                         };
                         
-                        // Connection statistics
+                        // Connection state
                         this.peerConnection.onconnectionstatechange = () => {
                             console.log('Connection state:', this.peerConnection.connectionState);
                         };
                         
-                        // Request connection from host
-                        if (this.hostId) {
+                        // Signaling state
+                        this.peerConnection.onsignalingstatechange = () => {
+                            console.log('Signaling state:', this.peerConnection.signalingState);
+                        };
+                        
+                        // Request connection from host if we have hostId
+                        if (this.hostId && this.socket) {
+                            console.log('Requesting connection from host:', this.hostId);
                             this.socket.emit('request-connection', {
                                 roomId: this.roomCode,
                                 listenerId: this.socket.id
@@ -759,33 +824,181 @@
                     }
                 },
                 
-                // Handle SDP offer from host
+                // Setup audio stream - DIPERBAIKI
+                async setupAudioStream(stream) {
+                    try {
+                        this.audioStream = stream;
+                        this.$refs.audioElement.srcObject = this.audioStream;
+                        
+                        // Setup audio visualization if audio context is available
+                        if (this.audioContext && this.analyser) {
+                            const source = this.audioContext.createMediaStreamSource(stream);
+                            source.connect(this.analyser);
+                            console.log('✅ Audio visualization connected');
+                        }
+                        
+                        // Try to play audio
+                        await this.playAudio();
+                        
+                        this.isAudioPlaying = true;
+                        this.isConnected = true;
+                        this.connectionStep = 4;
+                        this.updateConnectionProgress();
+                        this.connectionState = 'connected';
+                        
+                        this.updateStatus('Audio streaming aktif!', 'bg-green-500', 'Nikmati audio dari pengirim');
+                        this.connectionStatus = 'Audio streaming aktif';
+                        this.connectionQuality = 'Excellent';
+                        
+                        // Start audio level monitoring
+                        this.startAudioLevelMonitoring();
+                        
+                        // Start connection quality monitoring
+                        this.startConnectionMonitoring();
+                        
+                    } catch (error) {
+                        console.error('Error setting up audio stream:', error);
+                        this.updateStatus('Gagal memutar audio', 'bg-red-500', error.message);
+                    }
+                },
+                
+                // Play audio - DIPERBAIKI
+                async playAudio() {
+                    try {
+                        // Set volume
+                        this.$refs.audioElement.volume = this.volume / 100;
+                        
+                        // Try to play
+                        const playPromise = this.$refs.audioElement.play();
+                        
+                        if (playPromise !== undefined) {
+                            await playPromise;
+                            console.log('✅ Audio playback started successfully');
+                            return true;
+                        }
+                    } catch (error) {
+                        console.error('Error playing audio:', error);
+                        
+                        // Try different approaches
+                        try {
+                            // Try with user interaction simulation
+                            this.$refs.audioElement.muted = false;
+                            this.$refs.audioElement.volume = 0.1;
+                            await this.$refs.audioElement.play();
+                            console.log('✅ Audio playback started with reduced volume');
+                            return true;
+                        } catch (secondError) {
+                            console.error('Second attempt failed:', secondError);
+                            
+                            // Show user instruction
+                            this.updateStatus('Klik tombol play untuk memulai audio', 'bg-yellow-500');
+                            this.showNotification('Klik tombol Play untuk memulai audio', 'warning');
+                            return false;
+                        }
+                    }
+                },
+                
+                // Handle SDP offer from host - DIPERBAIKI
                 async handleOffer(offer) {
                     try {
                         if (!this.peerConnection) {
                             console.error('No peer connection available');
-                            return;
+                            await this.initializePeerConnection();
                         }
                         
+                        console.log('Setting remote description...');
                         await this.peerConnection.setRemoteDescription(
                             new RTCSessionDescription(offer)
                         );
                         
-                        const answer = await this.peerConnection.createAnswer();
+                        console.log('Creating answer...');
+                        const answer = await this.peerConnection.createAnswer({
+                            offerToReceiveAudio: true,
+                            offerToReceiveVideo: false
+                        });
+                        
+                        console.log('Setting local description...');
                         await this.peerConnection.setLocalDescription(answer);
                         
+                        console.log('Sending answer to host...');
                         this.socket.emit('sdp-answer', {
                             roomId: this.roomCode,
                             answer: answer,
                             to: this.hostId
                         });
                         
-                        console.log('✅ SDP answer sent');
+                        console.log('✅ SDP answer sent successfully');
                         
                     } catch (error) {
                         console.error('❌ Error handling SDP offer:', error);
                         this.updateStatus('Gagal menangani offer', 'bg-red-500', error.message);
+                        
+                        // Try to reinitialize connection
+                        setTimeout(() => {
+                            this.retryConnection();
+                        }, 1000);
                     }
+                },
+                
+                // Start audio level monitoring - DIPERBAIKI
+                startAudioLevelMonitoring() {
+                    const updateLevel = () => {
+                        if (this.isAudioPlaying && this.audioStream && this.analyser) {
+                            // Get audio data from analyser
+                            this.analyser.getByteFrequencyData(this.audioDataArray);
+                            
+                            // Calculate average volume
+                            let sum = 0;
+                            for (let i = 0; i < this.audioDataArray.length; i++) {
+                                sum += this.audioDataArray[i];
+                            }
+                            const average = sum / this.audioDataArray.length;
+                            
+                            // Convert to percentage (0-100)
+                            this.audioLevel = Math.min(100, (average / 255) * 100);
+                            
+                            // Simulate bytes received
+                            this.bytesReceived += Math.floor(Math.random() * 1000);
+                            
+                            // Simulate occasional packet loss
+                            if (Math.random() < 0.05) { // 5% chance
+                                this.packetsLost += Math.floor(Math.random() * 3);
+                            }
+                            
+                            // Simulate latency
+                            this.latency = 30 + Math.floor(Math.random() * 40);
+                        } else if (this.isAudioPlaying) {
+                            // Fallback simulation
+                            this.audioLevel = 30 + Math.random() * 50;
+                            this.bytesReceived += Math.floor(Math.random() * 500);
+                            this.latency = 50 + Math.floor(Math.random() * 50);
+                        } else {
+                            this.audioLevel = 0;
+                        }
+                        
+                        // Continue monitoring
+                        if (this.isAudioPlaying) {
+                            requestAnimationFrame(updateLevel);
+                        }
+                    };
+                    
+                    updateLevel();
+                },
+                
+                // Start connection monitoring
+                startConnectionMonitoring() {
+                    setInterval(() => {
+                        if (this.peerConnection && this.peerConnection.iceConnectionState === 'connected') {
+                            // Update connection quality based on simulated metrics
+                            if (this.packetsLost > 50) {
+                                this.connectionQuality = 'Poor';
+                            } else if (this.packetsLost > 20) {
+                                this.connectionQuality = 'Good';
+                            } else {
+                                this.connectionQuality = 'Excellent';
+                            }
+                        }
+                    }, 3000);
                 },
                 
                 // Retry connection
@@ -805,6 +1018,8 @@
                         this.peerConnection.close();
                         this.peerConnection = null;
                     }
+                    
+                    this.stopAudio();
                     
                     // Wait before retrying
                     setTimeout(async () => {
@@ -846,92 +1061,81 @@
                 },
                 
                 toggleAudio() {
-                    if (!this.audioStream) return;
+                    if (!this.audioStream) {
+                        this.showNotification('Tidak ada audio stream tersedia', 'warning');
+                        return;
+                    }
                     
-                    this.isAudioPlaying = !this.isAudioPlaying;
-                    if (this.$refs.audioElement) {
-                        if (this.isAudioPlaying) {
-                            this.$refs.audioElement.play()
-                                .then(() => {
+                    if (this.isAudioPlaying) {
+                        this.$refs.audioElement.pause();
+                        this.isAudioPlaying = false;
+                        this.updateStatus('Audio dijeda', 'bg-yellow-500');
+                    } else {
+                        this.playAudio()
+                            .then(success => {
+                                if (success) {
+                                    this.isAudioPlaying = true;
                                     this.updateStatus('Audio diputar', 'bg-green-500');
-                                })
-                                .catch(error => {
-                                    console.error('Error playing audio:', error);
-                                    this.isAudioPlaying = false;
-                                    this.updateStatus('Gagal memutar audio', 'bg-red-500');
-                                });
-                        } else {
-                            this.$refs.audioElement.pause();
-                            this.updateStatus('Audio dijeda', 'bg-yellow-500');
-                        }
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error playing audio:', error);
+                                this.isAudioPlaying = false;
+                            });
                     }
                 },
                 
                 stopAudio() {
                     this.isAudioPlaying = false;
-                    this.audioStream = null;
                     if (this.$refs.audioElement) {
-                        this.$refs.audioElement.srcObject = null;
                         this.$refs.audioElement.pause();
+                        this.$refs.audioElement.srcObject = null;
                     }
+                    this.audioStream = null;
                 },
                 
-                testAudio() {
-                    // Play a test sound
-                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                    const oscillator = audioContext.createOscillator();
-                    const gainNode = audioContext.createGain();
-                    
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioContext.destination);
-                    
-                    oscillator.frequency.value = 440; // A4 note
-                    oscillator.type = 'sine';
-                    
-                    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-                    
-                    oscillator.start();
-                    oscillator.stop(audioContext.currentTime + 0.5);
-                    
-                    this.showNotification('Test audio diputar', 'info');
-                },
-                
-                startAudioLevelSimulation() {
-                    setInterval(() => {
-                        if (this.isAudioPlaying && this.audioStream) {
-                            // Simulate audio level changes
-                            this.audioLevel = 30 + Math.random() * 50;
+                // Test audio playback - DIPERBAIKI
+                async testAudioPlayback() {
+                    try {
+                        // Test 1: Simple beep sound using Web Audio API
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const oscillator = audioContext.createOscillator();
+                        const gainNode = audioContext.createGain();
+                        
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioContext.destination);
+                        
+                        oscillator.frequency.value = 440; // A4 note
+                        oscillator.type = 'sine';
+                        
+                        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                        
+                        oscillator.start();
+                        oscillator.stop(audioContext.currentTime + 0.5);
+                        
+                        this.showNotification('Test audio diputar (suara beep)', 'success');
+                        
+                        // Test 2: Check if audio element can play
+                        setTimeout(() => {
+                            const testAudio = new Audio();
+                            testAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ';
+                            testAudio.volume = 0.3;
                             
-                            // Simulate bytes received
-                            this.bytesReceived += Math.floor(Math.random() * 1000);
-                            
-                            // Simulate occasional packet loss
-                            if (Math.random() < 0.1) {
-                                this.packetsLost += Math.floor(Math.random() * 5);
-                            }
-                            
-                            // Simulate latency
-                            this.latency = 50 + Math.floor(Math.random() * 50);
-                        } else {
-                            this.audioLevel = 0;
-                        }
-                    }, 200);
-                },
-                
-                startConnectionMonitoring() {
-                    setInterval(() => {
-                        if (this.peerConnection && this.peerConnection.iceConnectionState === 'connected') {
-                            // Update connection quality based on simulated metrics
-                            if (this.packetsLost > 50) {
-                                this.connectionQuality = 'Poor';
-                            } else if (this.packetsLost > 20) {
-                                this.connectionQuality = 'Good';
-                            } else {
-                                this.connectionQuality = 'Excellent';
-                            }
-                        }
-                    }, 3000);
+                            testAudio.play()
+                                .then(() => {
+                                    console.log('✅ Audio element test passed');
+                                })
+                                .catch(error => {
+                                    console.warn('⚠️ Audio element test failed:', error);
+                                    this.showNotification('Browser mungkin memblokir audio otomatis', 'warning');
+                                });
+                        }, 600);
+                        
+                    } catch (error) {
+                        console.error('Audio test error:', error);
+                        this.showError('Test Audio Gagal', 'Browser Anda mungkin memblokir audio. Pastikan izin audio diaktifkan.');
+                    }
                 },
                 
                 // Helper methods
@@ -958,6 +1162,13 @@
                 getBarHeight(index) {
                     if (!this.isAudioPlaying) return 10;
                     
+                    // Use real audio data if available
+                    if (this.analyser && this.audioDataArray) {
+                        const dataIndex = Math.floor((index / 7) * this.audioDataArray.length);
+                        return 10 + (this.audioDataArray[dataIndex] / 255) * 30;
+                    }
+                    
+                    // Fallback simulation
                     const baseHeight = 10;
                     const variation = Math.sin(Date.now() / 500 + index) * 15;
                     return baseHeight + variation + (index * 2);
@@ -966,6 +1177,13 @@
                 getEqualizerHeight(index) {
                     if (!this.isAudioPlaying) return 10;
                     
+                    // Use real audio data if available
+                    if (this.analyser && this.audioDataArray) {
+                        const dataIndex = Math.floor((index / 10) * this.audioDataArray.length);
+                        return 10 + (this.audioDataArray[dataIndex] / 255) * 30;
+                    }
+                    
+                    // Fallback simulation
                     const baseHeight = 10;
                     const variation = Math.sin(Date.now() / 300 + index * 0.5) * 20;
                     return baseHeight + variation;
@@ -978,12 +1196,55 @@
                 },
                 
                 showError(title, message) {
-                    alert(`❌ ${title}\n${message}`);
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50';
+                    errorDiv.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="mr-3">⚠️</span>
+                            <div>
+                                <p class="font-bold">${title}</p>
+                                <p class="text-sm opacity-90">${message}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(errorDiv);
+                    
+                    setTimeout(() => {
+                        errorDiv.style.opacity = '0';
+                        errorDiv.style.transform = 'translate(-50%, -20px)';
+                        setTimeout(() => {
+                            if (errorDiv.parentNode) {
+                                document.body.removeChild(errorDiv);
+                            }
+                        }, 300);
+                    }, 5000);
                 },
                 
                 showNotification(message, type = 'info') {
-                    // Simple notification
-                    console.log(`${type}: ${message}`);
+                    const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+                    const bgColor = type === 'success' ? 'bg-green-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500';
+                    
+                    const notificationDiv = document.createElement('div');
+                    notificationDiv.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 z-50`;
+                    notificationDiv.innerHTML = `
+                        <div class="flex items-center">
+                            <span class="mr-3">${icon}</span>
+                            <span>${message}</span>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(notificationDiv);
+                    
+                    setTimeout(() => {
+                        notificationDiv.style.transform = 'translateX(100%)';
+                        notificationDiv.style.opacity = '0';
+                        setTimeout(() => {
+                            if (notificationDiv.parentNode) {
+                                document.body.removeChild(notificationDiv);
+                            }
+                        }, 300);
+                    }, 3000);
                 }
             };
         }

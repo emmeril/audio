@@ -50,6 +50,27 @@
             0% { background-position: 0 0; }
             100% { background-position: 300% 0; }
         }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .streaming-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .live-badge {
+            background: linear-gradient(90deg, #ff0000, #ff5252);
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -67,10 +88,18 @@
                             <p class="text-white/80 text-sm">Stream audio dari komputer Anda</p>
                         </div>
                     </div>
-                    <div class="text-white">
-                        <div class="flex items-center space-x-2 bg-white/10 px-3 py-2 rounded-lg">
-                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            <span class="text-sm">Server Online</span>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-white">
+                            <div class="flex items-center space-x-2 bg-white/10 px-3 py-2 rounded-lg">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <span class="text-sm">Server Online</span>
+                            </div>
+                        </div>
+                        <div class="hidden md:block">
+                            <div class="flex items-center space-x-2 text-white/80">
+                                <span class="text-sm">Stream Aktif:</span>
+                                <span class="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold" x-text="activeStreamsCount"></span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -78,10 +107,10 @@
         </header>
 
         <!-- Main Content -->
-        <main class="flex-1 flex items-center justify-center p-4">
-            <div class="w-full max-w-4xl">
+        <main class="flex-1 p-4">
+            <div class="w-full max-w-6xl mx-auto">
                 <!-- Hero Section -->
-                <div class="text-center mb-12">
+                <div class="text-center mb-8 pt-4">
                     <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
                         Streaming Audio <span class="text-yellow-300">Real-time</span>
                     </h2>
@@ -90,8 +119,108 @@
                     </p>
                 </div>
 
+                <!-- Streaming Aktif Section -->
+                <div class="mb-10 fade-in" x-show="activeRooms.length > 0">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="text-2xl font-bold text-white">🔥 Streaming Aktif Sekarang</h3>
+                            <p class="text-white/80">Gabung langsung ke streaming yang sedang berlangsung</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="bg-white/20 px-3 py-1 rounded-full">
+                                <span class="text-white text-sm" x-text="activeRooms.length + ' aktif'"></span>
+                            </div>
+                            <button @click="refreshActiveRooms()" 
+                                    class="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <template x-for="room in activeRooms" :key="room.roomId">
+                            <div class="streaming-card rounded-2xl p-6 fade-in hover:shadow-xl transition-all duration-300">
+                                <div class="flex items-start justify-between mb-4">
+                                    <div>
+                                        <div class="flex items-center mb-2">
+                                            <div class="live-badge px-3 py-1 rounded-full mr-3">
+                                                <span class="text-white text-xs font-bold">LIVE</span>
+                                            </div>
+                                            <span class="text-xs text-gray-500" x-text="formatTimeAgo(room.startedAt)"></span>
+                                        </div>
+                                        <h4 class="text-xl font-bold text-gray-800" x-text="room.roomId"></h4>
+                                        <p class="text-gray-600 text-sm mt-1">Sedang streaming audio</p>
+                                    </div>
+                                    <div class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                                        <span x-text="room.listenersCount"></span> 🎧
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-3 mb-6">
+                                    <div class="flex items-center text-sm text-gray-600">
+                                        <span class="mr-2">👑</span>
+                                        <span>Host: <span class="font-mono" x-text="room.hostId.substring(0, 8) + '...'"></span></span>
+                                    </div>
+                                    
+                                    <div class="flex items-center text-sm text-gray-600">
+                                        <span class="mr-2">⏱️</span>
+                                        <span x-text="'Durasi: ' + formatDuration(room.startedAt)"></span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-3">
+                                    <a :href="'/receiver?room=' + room.roomId" 
+                                       class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-3 px-4 rounded-xl transition-all duration-300 text-center flex items-center justify-center">
+                                        <span class="mr-2">🎧</span>
+                                        Gabung Sekarang
+                                    </a>
+                                    
+                                    <button @click="copyRoomLink(room.roomId)" 
+                                            class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center">
+                                        <span class="mr-2">📋</span>
+                                        Link
+                                    </button>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full" 
+                                             :style="`width: ${Math.min(room.listenersCount * 20, 100)}%`"></div>
+                                    </div>
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>Popularitas</span>
+                                        <span x-text="room.listenersCount + ' pendengar'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div class="text-center mt-6">
+                        <button @click="showAllActiveRooms = !showAllActiveRooms" 
+                                x-show="activeRooms.length > 3"
+                                class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300">
+                            <span x-text="showAllActiveRooms ? 'Tampilkan Lebih Sedikit' : 'Tampilkan Semua (' + activeRooms.length + ')'"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty State for Active Streams -->
+                <div class="mb-10 fade-in" x-show="activeRooms.length === 0 && hasCheckedActiveRooms">
+                    <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 text-center">
+                        <div class="text-6xl mb-4">🔇</div>
+                        <h4 class="text-2xl font-bold text-white mb-2">Belum ada streaming aktif</h4>
+                        <p class="text-white/80 mb-6">Jadilah yang pertama membuat streaming audio!</p>
+                        <a href="/sender" class="inline-block bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-8 rounded-xl transition-all duration-300 text-lg">
+                            🎤 Buat Streaming Sekarang
+                        </a>
+                    </div>
+                </div>
+
                 <!-- Cards Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
                     <!-- Sender Card -->
                     <div class="card-hover bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-8">
                         <div class="flex items-center mb-6">
@@ -125,7 +254,15 @@
                             </div>
                         </div>
                         
-                        <a href="/sender" 
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Kode Room (Opsional)</label>
+                            <input x-model="customRoomCode" 
+                                   type="text" 
+                                   placeholder="Kosongkan untuk generate otomatis"
+                                   class="w-full px-4 py-3 border-2 border-blue-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200">
+                        </div>
+                        
+                        <a :href="customRoomCode ? '/sender?room=' + customRoomCode : '/sender'" 
                            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center group">
                             <span class="mr-3 text-xl">▶️</span>
                             <span class="text-lg">Mulai Streaming Sekarang</span>
@@ -154,7 +291,7 @@
                                 <div class="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mr-3 mt-1">
                                     <span class="text-purple-600 text-sm">1</span>
                                 </div>
-                                <p class="text-gray-700">Dapatkan kode room dari pengirim</p>
+                                <p class="text-gray-700">Dapatkan kode room dari pengirim atau pilih dari daftar</p>
                             </div>
                             <div class="flex items-start">
                                 <div class="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center mr-3 mt-1">
@@ -193,6 +330,29 @@
                                     🎲 Random
                                 </button>
                             </div>
+                            
+                            <div class="text-center">
+                                <button @click="showQuickJoin = !showQuickJoin"
+                                        class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                    <span x-text="showQuickJoin ? 'Sembunyikan Join Cepat ▼' : 'Tampilkan Join Cepat ►'"></span>
+                                </button>
+                            </div>
+                            
+                            <div x-show="showQuickJoin" class="space-y-2">
+                                <template x-for="room in activeRooms.slice(0, 3)" :key="room.roomId">
+                                    <button @click="quickJoin(room.roomId)"
+                                            class="w-full text-left p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-3"></div>
+                                            <span class="font-semibold text-gray-800" x-text="room.roomId"></span>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-sm text-gray-500" x-text="room.listenersCount + ' 🎧'"></span>
+                                            <span class="text-blue-600">▶️</span>
+                                        </div>
+                                    </button>
+                                </template>
+                            </div>
                         </div>
                         
                         <div class="mt-6 p-4 bg-purple-50 rounded-xl" x-show="roomStatus">
@@ -209,34 +369,45 @@
                 </div>
 
                 <!-- Features -->
-                <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
-                        <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-2xl">⚡</span>
+                <div class="mb-10">
+                    <h3 class="text-2xl font-bold text-white mb-6 text-center">✨ Fitur Unggulan</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
+                            <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span class="text-2xl">⚡</span>
+                            </div>
+                            <h4 class="font-bold text-white text-lg mb-2">Real-time</h4>
+                            <p class="text-white/80 text-sm">Stream audio dengan latensi rendah menggunakan WebRTC</p>
                         </div>
-                        <h4 class="font-bold text-white text-lg mb-2">Real-time</h4>
-                        <p class="text-white/80 text-sm">Stream audio dengan latensi rendah menggunakan WebRTC</p>
-                    </div>
-                    
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
-                        <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-2xl">👥</span>
+                        
+                        <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
+                            <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span class="text-2xl">👥</span>
+                            </div>
+                            <h4 class="font-bold text-white text-lg mb-2">Multi-user</h4>
+                            <p class="text-white/80 text-sm">Satu pengirim bisa streaming ke banyak pendengar</p>
                         </div>
-                        <h4 class="font-bold text-white text-lg mb-2">Multi-user</h4>
-                        <p class="text-white/80 text-sm">Satu pengirim bisa streaming ke banyak pendengar</p>
-                    </div>
-                    
-                    <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
-                        <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <span class="text-2xl">🔒</span>
+                        
+                        <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
+                            <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span class="text-2xl">🔒</span>
+                            </div>
+                            <h4 class="font-bold text-white text-lg mb-2">Aman</h4>
+                            <p class="text-white/80 text-sm">Koneksi langsung antar perangkat tanpa server relay</p>
                         </div>
-                        <h4 class="font-bold text-white text-lg mb-2">Aman</h4>
-                        <p class="text-white/80 text-sm">Koneksi langsung antar perangkat tanpa server relay</p>
+                        
+                        <div class="bg-white/20 backdrop-blur-sm rounded-xl p-6 text-center">
+                            <div class="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <span class="text-2xl">📱</span>
+                            </div>
+                            <h4 class="font-bold text-white text-lg mb-2">Instant Join</h4>
+                            <p class="text-white/80 text-sm">Gabung streaming aktif dengan satu klik</p>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Instructions -->
-                <div class="mt-12 bg-white/10 backdrop-blur-sm rounded-2xl p-8">
+                <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 mb-10">
                     <h3 class="text-2xl font-bold text-white mb-6 text-center">📋 Panduan Penggunaan</h3>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -259,7 +430,7 @@
                                 </li>
                                 <li class="flex items-start">
                                     <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-1">4</span>
-                                    <span class="text-white/90">Bagikan kode room yang muncul ke pendengar</span>
+                                    <span class="text-white/90">Streaming Anda akan muncul di daftar aktif</span>
                                 </li>
                             </ol>
                         </div>
@@ -271,11 +442,11 @@
                             <ol class="space-y-3">
                                 <li class="flex items-start">
                                     <span class="bg-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-1">1</span>
-                                    <span class="text-white/90">Dapatkan kode room dari pengirim</span>
+                                    <span class="text-white/90">Pilih streaming dari daftar "Streaming Aktif Sekarang"</span>
                                 </li>
                                 <li class="flex items-start">
                                     <span class="bg-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-1">2</span>
-                                    <span class="text-white/90">Masukkan kode room dan klik "Gabung Room"</span>
+                                    <span class="text-white/90">Klik "Gabung Sekarang" pada streaming yang diinginkan</span>
                                 </li>
                                 <li class="flex items-start">
                                     <span class="bg-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 mt-1">3</span>
@@ -293,11 +464,24 @@
         </main>
 
         <!-- Footer -->
-        <footer class="bg-white/10 backdrop-blur-sm border-t border-white/20 py-6">
+        <footer class="bg-white/10 backdrop-blur-sm border-t border-white/20 py-6 mt-auto">
             <div class="container mx-auto px-4">
-                <div class="text-center text-white/70">
-                    <p class="mb-2">Audio Stream App v1.0 • Streaming audio dengan WebRTC</p>
-                    <p class="text-sm">Gunakan Google Chrome untuk pengalaman terbaik • Pastikan izin audio diaktifkan</p>
+                <div class="flex flex-col md:flex-row items-center justify-between">
+                    <div class="text-center md:text-left mb-4 md:mb-0">
+                        <p class="text-white mb-1">Audio Stream App v1.2 • Streaming audio dengan WebRTC</p>
+                        <p class="text-white/70 text-sm">Gunakan Google Chrome untuk pengalaman terbaik • Pastikan izin audio diaktifkan</p>
+                    </div>
+                    <div class="flex items-center space-x-4 text-white/70">
+                        <div class="text-center">
+                            <p class="text-sm">Stream Aktif</p>
+                            <p class="text-xl font-bold" x-text="activeStreamsCount"></p>
+                        </div>
+                        <div class="h-8 w-px bg-white/30"></div>
+                        <div class="text-center">
+                            <p class="text-sm">Total Room</p>
+                            <p class="text-xl font-bold" x-text="totalRooms"></p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </footer>
@@ -307,8 +491,17 @@
         function app() {
             return {
                 roomCode: '',
+                customRoomCode: '',
                 roomStatus: null,
                 checkInterval: null,
+                activeRooms: [],
+                hasCheckedActiveRooms: false,
+                showAllActiveRooms: false,
+                showQuickJoin: false,
+                activeRoomsInterval: null,
+                socket: null,
+                activeStreamsCount: 0,
+                totalRooms: 0,
                 
                 init() {
                     console.log('🎵 Audio Stream App initialized');
@@ -320,6 +513,88 @@
                         this.roomCode = roomParam.toUpperCase();
                         this.checkRoomStatus();
                     }
+                    
+                    // Initialize socket for real-time updates
+                    this.initializeSocket();
+                    
+                    // Fetch active rooms initially
+                    this.fetchActiveRooms();
+                    this.fetchStats();
+                    
+                    // Set up intervals
+                    this.activeRoomsInterval = setInterval(() => {
+                        this.fetchActiveRooms();
+                        this.fetchStats();
+                    }, 10000); // Update every 10 seconds
+                },
+                
+                initializeSocket() {
+                    this.socket = io({
+                        transports: ['websocket', 'polling']
+                    });
+                    
+                    this.socket.on('connect', () => {
+                        console.log('Connected to server for live updates');
+                    });
+                    
+                    // Listen for new streaming rooms
+                    this.socket.on('streaming-room-added', (data) => {
+                        console.log('New stream added:', data.roomId);
+                        this.fetchActiveRooms();
+                        this.fetchStats();
+                    });
+                    
+                    // Listen for removed streaming rooms
+                    this.socket.on('streaming-room-removed', (data) => {
+                        console.log('Stream removed:', data.roomId);
+                        this.fetchActiveRooms();
+                        this.fetchStats();
+                    });
+                    
+                    // Request active streams
+                    this.socket.on('connect', () => {
+                        this.socket.emit('get-active-streams');
+                    });
+                    
+                    this.socket.on('active-streams-list', (data) => {
+                        this.activeRooms = data.activeRooms;
+                        this.hasCheckedActiveRooms = true;
+                    });
+                },
+                
+                async fetchActiveRooms() {
+                    try {
+                        const response = await fetch('/api/rooms/active');
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.activeRooms = data.activeRooms;
+                            this.hasCheckedActiveRooms = true;
+                            this.activeStreamsCount = data.totalActive;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching active rooms:', error);
+                    }
+                },
+                
+                async fetchStats() {
+                    try {
+                        const response = await fetch('/api/stats');
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.activeStreamsCount = data.stats.activeStreams;
+                            this.totalRooms = data.stats.totalRooms;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching stats:', error);
+                    }
+                },
+                
+                refreshActiveRooms() {
+                    this.fetchActiveRooms();
+                    this.fetchStats();
+                    this.showAlert('Daftar streaming diperbarui', 'success');
                 },
                 
                 async checkRoomStatus() {
@@ -333,7 +608,8 @@
                             this.roomStatus = {
                                 isStreaming: data.isStreaming,
                                 listenersCount: data.listenersCount,
-                                hostId: data.hostId
+                                hostId: data.hostId,
+                                startedAt: data.startedAt
                             };
                             
                             // Auto-refresh every 5 seconds
@@ -381,6 +657,11 @@
                         });
                 },
                 
+                quickJoin(roomCode) {
+                    this.roomCode = roomCode;
+                    this.joinRoom();
+                },
+                
                 generateRandomRoom() {
                     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
                     let result = '';
@@ -396,10 +677,57 @@
                     }, 500);
                 },
                 
+                formatTimeAgo(timestamp) {
+                    if (!timestamp) return 'Baru saja';
+                    
+                    const now = Date.now();
+                    const diff = now - timestamp;
+                    const minutes = Math.floor(diff / (1000 * 60));
+                    
+                    if (minutes < 1) return 'Baru saja';
+                    if (minutes === 1) return '1 menit lalu';
+                    if (minutes < 60) return `${minutes} menit lalu`;
+                    
+                    const hours = Math.floor(minutes / 60);
+                    if (hours === 1) return '1 jam lalu';
+                    if (hours < 24) return `${hours} jam lalu`;
+                    
+                    const days = Math.floor(hours / 24);
+                    return `${days} hari lalu`;
+                },
+                
+                formatDuration(timestamp) {
+                    if (!timestamp) return '0m';
+                    
+                    const now = Date.now();
+                    const diff = now - timestamp;
+                    const minutes = Math.floor(diff / (1000 * 60));
+                    const hours = Math.floor(minutes / 60);
+                    
+                    if (hours > 0) {
+                        const remainingMinutes = minutes % 60;
+                        return `${hours}h ${remainingMinutes}m`;
+                    }
+                    
+                    return `${minutes}m`;
+                },
+                
+                copyRoomLink(roomCode) {
+                    const link = `${window.location.origin}/receiver?room=${roomCode}`;
+                    navigator.clipboard.writeText(link)
+                        .then(() => {
+                            this.showAlert(`Link untuk room ${roomCode} disalin!`, 'success');
+                        })
+                        .catch(err => {
+                            console.error('Gagal menyalin link:', err);
+                            this.showAlert('Gagal menyalin link', 'error');
+                        });
+                },
+                
                 showAlert(message, type = 'info') {
                     // Create alert element
                     const alertDiv = document.createElement('div');
-                    alertDiv.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 ${
+                    alertDiv.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 z-50 ${
                         type === 'error' ? 'bg-red-500 text-white' :
                         type === 'success' ? 'bg-green-500 text-white' :
                         'bg-blue-500 text-white'
@@ -418,9 +746,24 @@
                         alertDiv.style.transform = 'translateX(100%)';
                         alertDiv.style.opacity = '0';
                         setTimeout(() => {
-                            document.body.removeChild(alertDiv);
+                            if (alertDiv.parentNode) {
+                                document.body.removeChild(alertDiv);
+                            }
                         }, 300);
                     }, 3000);
+                },
+                
+                beforeDestroy() {
+                    // Clean up intervals
+                    if (this.checkInterval) {
+                        clearInterval(this.checkInterval);
+                    }
+                    if (this.activeRoomsInterval) {
+                        clearInterval(this.activeRoomsInterval);
+                    }
+                    if (this.socket) {
+                        this.socket.disconnect();
+                    }
                 }
             }
         }

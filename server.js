@@ -34,7 +34,8 @@ io.on('connection', (socket) => {
         host: null,
         listeners: new Set(),
         isStreaming: false,
-        hostSocketId: null
+        hostSocketId: null,
+        createdAt: Date.now()
       });
     }
     
@@ -77,12 +78,21 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (room && room.host === socket.id) {
       room.isStreaming = true;
+      room.startedAt = Date.now();
       console.log(`🎬 Host started streaming in room ${roomId}`);
       
       // Notify all listeners that host is streaming
       io.to(roomId).emit('host-streaming-started', {
         hostId: socket.id,
         roomId: roomId
+      });
+      
+      // Broadcast to everyone that a new stream is available
+      io.emit('streaming-room-added', {
+        roomId: roomId,
+        hostId: socket.id,
+        listenersCount: room.listeners.size,
+        startedAt: room.startedAt
       });
     }
   });
@@ -97,6 +107,11 @@ io.on('connection', (socket) => {
       // Notify all listeners
       io.to(roomId).emit('host-streaming-stopped', {
         hostId: socket.id,
+        roomId: roomId
+      });
+      
+      // Broadcast that stream ended
+      io.emit('streaming-room-removed', {
         roomId: roomId
       });
     }
@@ -165,6 +180,29 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Get active streaming rooms
+  socket.on('get-active-streams', () => {
+    const activeRooms = [];
+    
+    for (const [roomId, room] of rooms.entries()) {
+      if (room.host && room.isStreaming) {
+        activeRooms.push({
+          roomId: roomId,
+          hostId: room.host,
+          isStreaming: room.isStreaming,
+          listenersCount: room.listeners.size,
+          startedAt: room.startedAt || Date.now(),
+          createdAt: room.createdAt
+        });
+      }
+    }
+    
+    socket.emit('active-streams-list', {
+      activeRooms: activeRooms,
+      totalActive: activeRooms.length
+    });
+  });
+
   // Disconnect handler
   socket.on('disconnect', () => {
     console.log('❌ Client disconnected:', socket.id);
@@ -177,6 +215,13 @@ io.on('connection', (socket) => {
           roomId: roomId,
           hostId: socket.id
         });
+        
+        // Broadcast that stream ended
+        if (room.isStreaming) {
+          io.emit('streaming-room-removed', {
+            roomId: roomId
+          });
+        }
         
         // Clean up room
         rooms.delete(roomId);
@@ -222,13 +267,63 @@ app.get('/api/room/:roomId/status', (req, res) => {
       exists: true,
       hostId: room.host,
       isStreaming: room.isStreaming,
-      listenersCount: room.listeners.size
+      listenersCount: room.listeners.size,
+      startedAt: room.startedAt,
+      createdAt: room.createdAt
     });
   } else {
     res.json({
       exists: false
     });
   }
+});
+
+// New endpoint: Get active streaming rooms
+app.get('/api/rooms/active', (req, res) => {
+  const activeRooms = [];
+  
+  for (const [roomId, room] of rooms.entries()) {
+    if (room.host && room.isStreaming) {
+      activeRooms.push({
+        roomId: roomId,
+        hostId: room.host,
+        isStreaming: room.isStreaming,
+        listenersCount: room.listeners.size,
+        startedAt: room.startedAt || Date.now(),
+        createdAt: room.createdAt
+      });
+    }
+  }
+  
+  res.json({
+    success: true,
+    activeRooms: activeRooms,
+    totalActive: activeRooms.length
+  });
+});
+
+// New endpoint: Get server statistics
+app.get('/api/stats', (req, res) => {
+  const totalRooms = rooms.size;
+  let totalListeners = 0;
+  let activeStreams = 0;
+  
+  for (const [_, room] of rooms.entries()) {
+    totalListeners += room.listeners.size;
+    if (room.isStreaming) {
+      activeStreams++;
+    }
+  }
+  
+  res.json({
+    success: true,
+    stats: {
+      totalRooms: totalRooms,
+      totalListeners: totalListeners,
+      activeStreams: activeStreams,
+      serverUptime: process.uptime()
+    }
+  });
 });
 
 const PORT = process.env.PORT || 9631;
