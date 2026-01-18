@@ -12,6 +12,11 @@ function app() {
         mobileMenuActive: 'video',
         networkQuality: 'Unknown',
         
+        // Audio settings
+        audioVolume: 0.8,
+        audioProcessingEnabled: false,
+        audioQuality: 'standard', // standard, low, high
+        
         // State fullscreen
         localVideoFullscreen: false,
         remoteVideoFullscreen: false,
@@ -25,12 +30,16 @@ function app() {
         
         // Audio processing
         audioContext: null,
-        audioNodes: null,
-        audioMonitorInterval: null,
+        audioWorkletNode: null,
+        gainNode: null,
+        audioProcessor: null,
         
         // Konfigurasi connection attempts
         maxConnectionAttempts: 3,
         connectionAttempts: {},
+        
+        // Remote audio volumes
+        remoteVolumes: {},
         
         // Konfigurasi WebRTC
         configuration: {
@@ -40,7 +49,6 @@ function app() {
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
-                // TURN server alternatif
                 { 
                     urls: 'turn:relay1.expressturn.com:3478',
                     username: 'efT2VOJ3O5Yy',
@@ -55,29 +63,55 @@ function app() {
                     urls: 'turn:openrelay.metered.ca:443',
                     username: 'openrelayproject',
                     credential: 'openrelayproject'
-                },
-                { 
-                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
                 }
             ],
             iceCandidatePoolSize: 10,
             iceTransportPolicy: 'all',
-            // Konfigurasi untuk audio yang lebih stabil
-            encodedInsertableStreams: false,
-            forceEncodedAudioInsertableStreams: false,
-            forceEncodedVideoInsertableStreams: false
+            // Optimasi untuk audio
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require',
+            // Prioritaskan audio
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
         },
         
-        // Audio constraints untuk stabilisasi
-        audioConstraints: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 48000,
-            channelCount: 2,
-            latency: 0.01
+        // Audio constraints yang lebih sederhana
+        getAudioConstraints() {
+            const base = {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false, // Nonaktifkan, kita atur manual
+                sampleRate: 48000,
+                channelCount: 2,
+                sampleSize: 16,
+                latency: 0
+            };
+            
+            // Sesuaikan dengan kualitas yang dipilih
+            switch(this.audioQuality) {
+                case 'low':
+                    return {
+                        ...base,
+                        sampleRate: 22050,
+                        channelCount: 1,
+                        sampleSize: 8
+                    };
+                case 'high':
+                    return {
+                        ...base,
+                        sampleRate: 48000,
+                        channelCount: 2,
+                        sampleSize: 24,
+                        latency: 0.01
+                    };
+                default: // standard
+                    return {
+                        ...base,
+                        sampleRate: 44100,
+                        channelCount: 2,
+                        sampleSize: 16
+                    };
+            }
         },
         
         // Inisialisasi
@@ -85,8 +119,8 @@ function app() {
             console.log('🚀 Aplikasi Screen Share dimulai');
             this.generateRoomId();
             
-            // Cek kualitas jaringan
-            this.checkNetworkQuality();
+            // Setup audio worklet jika didukung
+            this.setupAudioWorklet();
             
             // Setup socket connection
             this.initializeSocket();
@@ -95,6 +129,39 @@ function app() {
             
             // Setup network monitoring
             this.setupNetworkMonitoring();
+            
+            // Setup volume controls
+            this.setupVolumeControls();
+        },
+        
+        // Setup volume controls
+        setupVolumeControls() {
+            // Update volume untuk semua remote video
+            setInterval(() => {
+                this.updateRemoteVolumes();
+            }, 1000);
+        },
+        
+        // Setup audio worklet untuk processing
+        async setupAudioWorklet() {
+            try {
+                if (window.AudioWorkletNode && this.audioProcessingEnabled) {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                        sampleRate: 48000,
+                        latencyHint: 'interactive'
+                    });
+                    
+                    // Tunggu audio context siap
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume();
+                    }
+                    
+                    console.log('🔧 AudioWorklet siap digunakan');
+                }
+            } catch (error) {
+                console.warn('⚠️ AudioWorklet tidak didukung:', error);
+                this.audioProcessingEnabled = false;
+            }
         },
         
         // Setup fitur mobile
@@ -158,9 +225,18 @@ function app() {
                 this.networkQuality = connection.effectiveType || 'Unknown';
                 console.log('📶 Network quality:', this.networkQuality);
                 
-                // Tampilkan warning untuk jaringan lambat
+                // Sesuaikan kualitas audio berdasarkan jaringan
                 if (connection.effectiveType === '2g' || connection.downlink < 1) {
-                    this.showNotification('Koneksi jaringan lambat, kualitas video mungkin terpengaruh', 'warning');
+                    if (this.audioQuality !== 'low') {
+                        this.audioQuality = 'low';
+                        this.showNotification('Kualitas audio diturunkan karena jaringan lambat', 'warning');
+                    }
+                } else if (connection.effectiveType === '4g' && connection.downlink > 5) {
+                    if (this.audioQuality !== 'high') {
+                        this.audioQuality = 'high';
+                    }
+                } else {
+                    this.audioQuality = 'standard';
                 }
             }
         },
@@ -334,104 +410,98 @@ function app() {
             }
         },
         
-        // Setup Audio Normalization
-        setupAudioNormalization(audioTrack) {
-            try {
-                if (!audioTrack || !window.AudioContext) {
-                    console.log('AudioContext tidak tersedia, melewati normalisasi audio');
-                    return;
-                }
-                
-                console.log('🔧 Setting up audio normalization...');
-                
-                // Cek apakah track sudah memiliki processing
-                const settings = audioTrack.getSettings();
-                if (settings.autoGainControl) {
-                    console.log('✅ Auto gain control sudah aktif di track');
-                }
-                
-                // Buat AudioContext jika belum ada
-                if (!this.audioContext || this.audioContext.state === 'closed') {
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                        sampleRate: 48000,
-                        latencyHint: 'interactive'
-                    });
-                }
-                
-                // Buat source dari track audio
-                const source = this.audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
-                
-                // Buat compressor untuk menstabilkan volume
-                const compressor = this.audioContext.createDynamicsCompressor();
-                compressor.threshold.value = -20;    // Threshold -20 dB
-                compressor.knee.value = 10;          // Soft knee 10 dB
-                compressor.ratio.value = 4;          // Ratio 4:1
-                compressor.attack.value = 0.005;     // Attack 5ms
-                compressor.release.value = 0.1;      // Release 100ms
-                
-                // Buat gain node untuk volume konstan
-                const gainNode = this.audioContext.createGain();
-                gainNode.gain.value = 0.8; // Volume 80% untuk mencegah clipping
-                
-                // Buat destination stream
-                const destination = this.audioContext.createMediaStreamDestination();
-                
-                // Hubungkan: source -> compressor -> gain -> destination
-                source.connect(compressor);
-                compressor.connect(gainNode);
-                gainNode.connect(destination);
-                
-                // Simpan nodes untuk cleanup
-                this.audioNodes = { source, compressor, gainNode, destination };
-                
-                // Ganti audio track di localStream dengan yang sudah diproses
-                this.localStream.removeTrack(audioTrack);
-                this.localStream.addTrack(destination.stream.getAudioTracks()[0]);
-                
-                console.log('✅ Audio normalization enabled');
-                
-                // Log parameter untuk debugging
-                console.log('🎛️ Audio processing parameters:', {
-                    sampleRate: this.audioContext.sampleRate,
-                    compressionRatio: compressor.ratio.value,
-                    gain: gainNode.gain.value
-                });
-                
-            } catch (error) {
-                console.warn('⚠️ Audio normalization error:', error);
-                // Jangan crash jika audio processing gagal
+        // Atur volume audio
+        setAudioVolume(volume) {
+            this.audioVolume = Math.max(0, Math.min(1, parseFloat(volume)));
+            console.log('🔊 Audio volume set to:', this.audioVolume);
+            
+            // Update volume untuk semua remote video
+            this.updateRemoteVolumes();
+            
+            // Update volume untuk local stream jika ada
+            if (this.localStream) {
+                this.updateLocalAudioVolume();
             }
         },
         
-        // Monitor kualitas audio
-        monitorAudioQuality() {
-            if (!this.localStream || !this.shareAudio || this.audioMonitorInterval) return;
+        // Update volume audio lokal
+        updateLocalAudioVolume() {
+            if (!this.localStream) return;
             
             const audioTracks = this.localStream.getAudioTracks();
-            if (audioTracks.length === 0) return;
-            
-            console.log('📊 Starting audio quality monitoring...');
-            
-            this.audioMonitorInterval = setInterval(() => {
+            audioTracks.forEach(track => {
+                // Coba atur volume melalui constraint jika didukung
                 try {
-                    const track = audioTracks[0];
-                    const settings = track.getSettings();
-                    
-                    // Log audio metrics
-                    const stats = {
-                        autoGainControl: settings.autoGainControl,
-                        echoCancellation: settings.echoCancellation,
-                        noiseSuppression: settings.noiseSuppression,
-                        sampleRate: settings.sampleRate,
-                        channelCount: settings.channelCount
-                    };
-                    
-                    console.log('📈 Audio stats:', stats);
-                    
+                    const constraints = track.getConstraints();
+                    if (constraints.volume !== undefined) {
+                        track.applyConstraints({
+                            ...constraints,
+                            volume: this.audioVolume
+                        });
+                    }
                 } catch (error) {
-                    console.warn('⚠️ Audio monitoring error:', error);
+                    console.warn('⚠️ Cannot set audio volume directly:', error);
                 }
-            }, 5000); // Periksa setiap 5 detik
+            });
+        },
+        
+        // Update volume untuk semua remote video
+        updateRemoteVolumes() {
+            this.remoteVideos.forEach(video => {
+                const videoElement = document.getElementById(`remoteVideo-${video.userId}`);
+                if (videoElement) {
+                    // Gunakan volume global atau volume spesifik user
+                    const volume = this.remoteVolumes[video.userId] !== undefined 
+                        ? this.remoteVolumes[video.userId] 
+                        : this.audioVolume;
+                    
+                    videoElement.volume = volume;
+                    
+                    // Update UI volume control jika ada
+                    const volumeControl = document.querySelector(`[data-user-id="${video.userId}"] .volume-slider`);
+                    if (volumeControl && parseFloat(volumeControl.value) !== volume) {
+                        volumeControl.value = volume;
+                    }
+                }
+            });
+        },
+        
+        // Atur volume untuk user tertentu
+        setUserVolume(userId, volume) {
+            this.remoteVolumes[userId] = Math.max(0, Math.min(1, parseFloat(volume)));
+            
+            const videoElement = document.getElementById(`remoteVideo-${userId}`);
+            if (videoElement) {
+                videoElement.volume = this.remoteVolumes[userId];
+            }
+        },
+        
+        // Audio processing sederhana
+        setupSimpleAudioProcessing(audioTrack) {
+            try {
+                // Pendekatan sederhana: gunakan GainNode untuk kontrol volume
+                if (!window.AudioContext || !audioTrack) return audioTrack;
+                
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+                
+                // Buat gain node untuk kontrol volume
+                this.gainNode = audioContext.createGain();
+                this.gainNode.gain.value = this.audioVolume;
+                
+                // Hubungkan dan buat stream output
+                source.connect(this.gainNode);
+                const destination = audioContext.createMediaStreamDestination();
+                this.gainNode.connect(destination);
+                
+                this.audioContext = audioContext;
+                
+                return destination.stream.getAudioTracks()[0];
+                
+            } catch (error) {
+                console.warn('⚠️ Simple audio processing error, using original track:', error);
+                return audioTrack;
+            }
         },
         
         // Inisialisasi Socket.io
@@ -496,6 +566,7 @@ function app() {
                 console.log('👤 User disconnected:', userId);
                 this.usersInRoom--;
                 this.closePeerConnection(userId);
+                this.removeUserVolume(userId);
                 this.showNotification('Pengguna keluar dari ruangan', 'info');
             });
             
@@ -525,6 +596,13 @@ function app() {
             });
         },
         
+        // Hapus volume user
+        removeUserVolume(userId) {
+            if (this.remoteVolumes[userId]) {
+                delete this.remoteVolumes[userId];
+            }
+        },
+        
         // Bergabung ke ruangan
         joinRoom() {
             if (this.roomId && !this.isInRoom) {
@@ -543,6 +621,7 @@ function app() {
                 
                 Object.keys(this.peerConnections).forEach(userId => {
                     this.closePeerConnection(userId);
+                    this.removeUserVolume(userId);
                 });
                 
                 this.socket.emit('leave-room');
@@ -550,51 +629,44 @@ function app() {
                 this.usersInRoom = 1;
                 this.remoteVideos = [];
                 this.connectionAttempts = {};
+                this.remoteVolumes = {};
                 this.showNotification('Keluar dari ruangan', 'info');
             }
         },
         
-        // Mulai berbagi layar
+        // Mulai berbagi layar dengan audio yang lebih stabil
         async startScreenShare() {
             try {
                 console.log('🎬 Starting screen share with audio:', this.shareAudio);
+                console.log('🔊 Audio quality:', this.audioQuality);
                 
-                // Konfigurasi untuk layar
+                // Konfigurasi dasar
                 const displayOptions = {
                     video: {
                         cursor: "always",
                         displaySurface: "monitor",
                         frameRate: { ideal: 30, max: 60 }
-                    }
+                    },
+                    audio: false // Akan kita atur nanti
                 };
                 
-                // Konfigurasi audio jika diaktifkan
+                // Tambahkan audio jika diaktifkan
                 if (this.shareAudio) {
-                    // Untuk Chrome/Edge yang mendukung audio sistem
+                    displayOptions.audio = this.getAudioConstraints();
+                    
+                    // Untuk Chrome, tambahkan constraint khusus
                     if (navigator.userAgent.indexOf('Chrome') > -1) {
-                        displayOptions.audio = {
-                            echoCancellation: this.audioConstraints.echoCancellation,
-                            noiseSuppression: this.audioConstraints.noiseSuppression,
-                            autoGainControl: this.audioConstraints.autoGainControl,
-                            sampleRate: this.audioConstraints.sampleRate,
-                            channelCount: this.audioConstraints.channelCount,
-                            suppressLocalAudioPlayback: false
-                        };
-                        
-                        // Tambahkan constraint khusus Chrome
                         displayOptions.audio = {
                             ...displayOptions.audio,
                             mandatory: {
                                 chromeMediaSource: 'desktop',
                                 chromeMediaSourceId: undefined
-                            }
-                        };
-                    } else {
-                        // Untuk browser lain
-                        displayOptions.audio = {
-                            echoCancellation: this.audioConstraints.echoCancellation,
-                            noiseSuppression: this.audioConstraints.noiseSuppression,
-                            autoGainControl: this.audioConstraints.autoGainControl
+                            },
+                            optional: [
+                                { echoCancellation: false },
+                                { autoGainControl: false },
+                                { noiseSuppression: false }
+                            ]
                         };
                     }
                 }
@@ -604,31 +676,33 @@ function app() {
                 // Minta izin untuk berbagi layar
                 this.localStream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
                 
-                // Setup audio normalization jika ada audio track
+                // Proses audio jika diperlukan
                 if (this.shareAudio && this.localStream.getAudioTracks().length > 0) {
                     const audioTrack = this.localStream.getAudioTracks()[0];
-                    console.log('🔊 Audio track acquired:', {
+                    console.log('🔊 Original audio track:', {
                         enabled: audioTrack.enabled,
                         muted: audioTrack.muted,
                         settings: audioTrack.getSettings()
                     });
                     
-                    // Setup audio normalization
-                    this.setupAudioNormalization(audioTrack);
+                    // Coba processing audio sederhana
+                    const processedTrack = this.setupSimpleAudioProcessing(audioTrack);
+                    
+                    if (processedTrack !== audioTrack) {
+                        this.localStream.removeTrack(audioTrack);
+                        this.localStream.addTrack(processedTrack);
+                        console.log('✅ Audio processing applied');
+                    }
                     
                     // Setup audio track event listeners
-                    audioTrack.addEventListener('mute', () => {
+                    const track = this.localStream.getAudioTracks()[0];
+                    track.addEventListener('mute', () => {
                         console.log('🔇 Audio track muted');
-                        this.showNotification('Audio dimute oleh sistem', 'warning');
+                        this.showNotification('Audio dimute', 'warning');
                     });
                     
-                    audioTrack.addEventListener('unmute', () => {
+                    track.addEventListener('unmute', () => {
                         console.log('🔊 Audio track unmuted');
-                    });
-                    
-                    audioTrack.addEventListener('ended', () => {
-                        console.log('⏹️ Audio track ended');
-                        this.showNotification('Audio dihentikan', 'info');
                     });
                 }
                 
@@ -640,9 +714,9 @@ function app() {
                     console.log('✅ Screen sharing started');
                     this.showNotification('Berbagi layar dimulai', 'success');
                     
-                    // Monitor kualitas audio
+                    // Set volume awal
                     if (this.shareAudio) {
-                        setTimeout(() => this.monitorAudioQuality(), 2000);
+                        this.updateLocalAudioVolume();
                     }
                     
                     if (window.innerWidth < 1024) {
@@ -665,6 +739,11 @@ function app() {
                     };
                 }
                 
+                // Monitor audio secara berkala
+                if (this.shareAudio) {
+                    this.startAudioMonitoring();
+                }
+                
             } catch (error) {
                 console.error('❌ Error starting screen share:', error);
                 let errorMessage = 'Gagal memulai berbagi layar. ';
@@ -676,7 +755,7 @@ function app() {
                 } else if (error.name === 'NotReadableError') {
                     errorMessage = 'Tidak dapat membaca layar. Mungkin aplikasi lain sedang menggunakan kamera/layar.';
                 } else if (error.name === 'OverconstrainedError') {
-                    errorMessage = 'Konfigurasi audio/video tidak didukung. Coba nonaktifkan audio.';
+                    errorMessage = 'Konfigurasi audio/video tidak didukung. Coba nonaktifkan audio atau ubah kualitas.';
                 } else {
                     errorMessage += error.message;
                 }
@@ -685,41 +764,52 @@ function app() {
             }
         },
         
+        // Start audio monitoring
+        startAudioMonitoring() {
+            const checkAudio = () => {
+                if (!this.localStream || !this.isSharing) return;
+                
+                const audioTracks = this.localStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    const track = audioTracks[0];
+                    const settings = track.getSettings();
+                    
+                    console.log('🔍 Audio monitor:', {
+                        volume: this.audioVolume,
+                        quality: this.audioQuality,
+                        sampleRate: settings.sampleRate,
+                        channelCount: settings.channelCount
+                    });
+                }
+            };
+            
+            // Check setiap 5 detik
+            this.audioMonitorInterval = setInterval(checkAudio, 5000);
+        },
+        
         // Berhenti berbagi layar
         stopScreenShare() {
             // Hentikan audio monitoring
             if (this.audioMonitorInterval) {
                 clearInterval(this.audioMonitorInterval);
                 this.audioMonitorInterval = null;
-                console.log('📊 Audio monitoring stopped');
             }
             
             // Cleanup audio processing
-            if (this.audioNodes) {
-                try {
-                    if (this.audioNodes.source) {
-                        this.audioNodes.source.disconnect();
-                    }
-                    if (this.audioNodes.compressor) {
-                        this.audioNodes.compressor.disconnect();
-                    }
-                    if (this.audioNodes.gainNode) {
-                        this.audioNodes.gainNode.disconnect();
-                    }
-                    this.audioNodes = null;
-                } catch (error) {
-                    console.warn('Error cleaning up audio nodes:', error);
-                }
-            }
-            
-            // Close audio context
             if (this.audioContext && this.audioContext.state !== 'closed') {
-                this.audioContext.close().then(() => {
-                    this.audioContext = null;
-                    console.log('🔇 AudioContext closed');
-                }).catch(error => {
+                try {
+                    if (this.gainNode) {
+                        this.gainNode.disconnect();
+                        this.gainNode = null;
+                    }
+                    
+                    this.audioContext.close().then(() => {
+                        this.audioContext = null;
+                        console.log('🔇 AudioContext closed');
+                    });
+                } catch (error) {
                     console.warn('Error closing AudioContext:', error);
-                });
+                }
             }
             
             // Stop local stream
@@ -762,7 +852,7 @@ function app() {
             this.showNotification('Berbagi layar dihentikan', 'info');
         },
         
-        // Buat Peer Connection
+        // Buat Peer Connection dengan optimasi audio
         createPeerConnection(userId, isInitiator = false) {
             if (this.peerConnections[userId]) {
                 console.log('⚠️ Peer connection already exists for:', userId);
@@ -790,31 +880,8 @@ function app() {
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
                     try {
-                        const sender = peerConnection.addTrack(track, this.localStream);
+                        peerConnection.addTrack(track, this.localStream);
                         console.log('➕ Added track:', track.kind, 'to peer:', userId);
-                        
-                        // Konfigurasi audio sender untuk kualitas yang lebih baik
-                        if (track.kind === 'audio' && sender.setParameters) {
-                            const params = sender.getParameters();
-                            if (params) {
-                                // Prioritaskan audio untuk kualitas yang lebih stabil
-                                params.priority = 'high';
-                                params.networkPriority = 'high';
-                                
-                                // Konfigurasi encoding untuk audio
-                                if (!params.encodings) {
-                                    params.encodings = [{}];
-                                }
-                                
-                                params.encodings[0].active = true;
-                                params.encodings[0].priority = 'high';
-                                params.encodings[0].networkPriority = 'high';
-                                
-                                sender.setParameters(params)
-                                    .then(() => console.log(`✅ Audio parameters set for ${userId}`))
-                                    .catch(err => console.warn(`⚠️ Failed to set audio parameters:`, err));
-                            }
-                        }
                     } catch (error) {
                         console.error('Error adding track:', error);
                     }
@@ -841,6 +908,11 @@ function app() {
                 console.log('📹 Received remote track from:', userId, 'streams:', event.streams.length);
                 if (event.streams && event.streams[0]) {
                     this.addRemoteVideo(userId, event.streams[0]);
+                    
+                    // Set volume awal untuk remote video
+                    if (!this.remoteVolumes[userId]) {
+                        this.remoteVolumes[userId] = this.audioVolume;
+                    }
                 }
             };
             
@@ -921,7 +993,7 @@ function app() {
             }
         },
         
-        // Buat Offer
+        // Buat Offer dengan optimasi audio
         async createOffer(userId, peerConnection) {
             try {
                 console.log('📤 Creating offer for:', userId);
@@ -929,9 +1001,38 @@ function app() {
                 const offerOptions = {
                     offerToReceiveAudio: true,
                     offerToReceiveVideo: true,
-                    voiceActivityDetection: false, // Nonaktifkan VAD untuk volume konstan
+                    voiceActivityDetection: false,
                     iceRestart: false
                 };
+                
+                // Tambahkan preferensi codec untuk audio
+                if (this.shareAudio) {
+                    offerOptions.offerToReceiveAudio = true;
+                    
+                    // Coba set preferensi codec audio
+                    try {
+                        const transceivers = peerConnection.getTransceivers();
+                        transceivers.forEach(transceiver => {
+                            if (transceiver.sender && transceiver.sender.track && 
+                                transceiver.sender.track.kind === 'audio') {
+                                // Prioritaskan codec yang lebih stabil
+                                const codecs = RTCRtpSender.getCapabilities('audio').codecs;
+                                const preferredCodec = codecs.find(codec => 
+                                    codec.mimeType.includes('opus') || 
+                                    codec.mimeType.includes('PCMU')
+                                );
+                                
+                                if (preferredCodec) {
+                                    const params = transceiver.sender.getParameters();
+                                    params.codecs = [preferredCodec];
+                                    transceiver.sender.setParameters(params);
+                                }
+                            }
+                        });
+                    } catch (error) {
+                        console.warn('⚠️ Cannot set audio codec preferences:', error);
+                    }
+                }
                 
                 const offer = await peerConnection.createOffer(offerOptions);
                 console.log('📤 Offer created:', offer.type);
@@ -1078,7 +1179,7 @@ function app() {
             this.updateRemoteVideoElements();
         },
         
-        // Update elemen video remote di DOM
+        // Update elemen video remote di DOM dengan kontrol volume
         updateRemoteVideoElements() {
             const container = document.getElementById('remoteVideosContainer');
             if (!container) return;
@@ -1087,6 +1188,9 @@ function app() {
             
             this.remoteVideos.forEach(videoData => {
                 const videoId = `remoteVideo-${videoData.userId}`;
+                const userVolume = this.remoteVolumes[videoData.userId] !== undefined 
+                    ? this.remoteVolumes[videoData.userId] 
+                    : this.audioVolume;
                 
                 let videoElement = document.getElementById(videoId);
                 
@@ -1097,30 +1201,91 @@ function app() {
                     videoElement.playsInline = true;
                     videoElement.className = 'w-full h-full object-cover';
                     
-                    // Tambahkan event listener untuk audio
+                    // Set volume awal
+                    videoElement.volume = userVolume;
+                    
+                    // Tambahkan event listener untuk volume change
                     videoElement.addEventListener('volumechange', () => {
-                        console.log(`🎚️ Remote video volume changed: ${videoElement.volume}`);
+                        this.remoteVolumes[videoData.userId] = videoElement.volume;
                     });
                 }
                 
                 if (videoElement.srcObject !== videoData.stream) {
                     videoElement.srcObject = videoData.stream;
-                    
-                    // Set volume ke level yang stabil (80%)
-                    videoElement.volume = 0.8;
+                    videoElement.volume = userVolume;
                 }
                 
                 const videoWrapper = document.createElement('div');
-                videoWrapper.className = 'video-container h-48 md:h-64 lg:h-80';
+                videoWrapper.className = 'video-container h-48 md:h-64 lg:h-80 relative';
+                videoWrapper.setAttribute('data-user-id', videoData.userId);
                 
+                // User label
                 const userLabel = document.createElement('div');
                 userLabel.className = 'absolute bottom-3 left-3 md:bottom-4 md:left-4 bg-black bg-opacity-70 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm';
                 userLabel.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i>User ${videoData.userId.substring(0, 6)}`;
                 
+                // Live badge
                 const liveBadge = document.createElement('div');
                 liveBadge.className = 'live-badge absolute top-3 left-3 md:top-4 md:left-4 text-xs md:text-sm';
                 liveBadge.innerHTML = '<i class="fas fa-circle animate-pulse"></i> LIVE';
                 
+                // Volume control container
+                const volumeControl = document.createElement('div');
+                volumeControl.className = 'absolute bottom-3 right-10 md:bottom-4 md:right-12 flex items-center space-x-2 bg-black bg-opacity-70 px-2 py-1 rounded-lg';
+                
+                // Volume icon
+                const volumeIcon = document.createElement('i');
+                volumeIcon.className = 'fas fa-volume-up text-xs cursor-pointer';
+                volumeIcon.onclick = () => {
+                    const currentVol = videoElement.volume;
+                    const newVol = currentVol === 0 ? userVolume : 0;
+                    videoElement.volume = newVol;
+                    this.remoteVolumes[videoData.userId] = newVol;
+                    
+                    // Update slider
+                    const slider = volumeControl.querySelector('.volume-slider');
+                    if (slider) slider.value = newVol;
+                    
+                    // Update icon
+                    volumeIcon.className = newVol === 0 
+                        ? 'fas fa-volume-mute text-xs cursor-pointer' 
+                        : 'fas fa-volume-up text-xs cursor-pointer';
+                };
+                
+                // Volume slider
+                const volumeSlider = document.createElement('input');
+                volumeSlider.type = 'range';
+                volumeSlider.min = '0';
+                volumeSlider.max = '1';
+                volumeSlider.step = '0.1';
+                volumeSlider.value = userVolume;
+                volumeSlider.className = 'volume-slider w-12 md:w-16 accent-blue-500';
+                volumeSlider.title = 'Volume';
+                
+                volumeSlider.addEventListener('input', (e) => {
+                    const newVolume = parseFloat(e.target.value);
+                    videoElement.volume = newVolume;
+                    this.remoteVolumes[videoData.userId] = newVolume;
+                    
+                    // Update icon
+                    volumeIcon.className = newVolume === 0 
+                        ? 'fas fa-volume-mute text-xs cursor-pointer' 
+                        : newVolume < 0.5 
+                            ? 'fas fa-volume-down text-xs cursor-pointer' 
+                            : 'fas fa-volume-up text-xs cursor-pointer';
+                });
+                
+                // Set initial icon
+                volumeIcon.className = userVolume === 0 
+                    ? 'fas fa-volume-mute text-xs cursor-pointer' 
+                    : userVolume < 0.5 
+                        ? 'fas fa-volume-down text-xs cursor-pointer' 
+                        : 'fas fa-volume-up text-xs cursor-pointer';
+                
+                volumeControl.appendChild(volumeIcon);
+                volumeControl.appendChild(volumeSlider);
+                
+                // Fullscreen button
                 const fullscreenBtn = document.createElement('button');
                 fullscreenBtn.className = 'fullscreen-btn absolute top-3 right-3 md:top-4 md:right-4';
                 fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
@@ -1129,6 +1294,7 @@ function app() {
                 videoWrapper.appendChild(videoElement);
                 videoWrapper.appendChild(userLabel);
                 videoWrapper.appendChild(liveBadge);
+                videoWrapper.appendChild(volumeControl);
                 videoWrapper.appendChild(fullscreenBtn);
                 container.appendChild(videoWrapper);
             });
@@ -1136,8 +1302,16 @@ function app() {
         
         // Helper: Tampilkan notifikasi
         showNotification(message, type = 'info') {
+            // Hapus notifikasi lama
+            const oldNotifications = document.querySelectorAll('.custom-notification');
+            oldNotifications.forEach(n => {
+                if (n.parentNode) {
+                    document.body.removeChild(n);
+                }
+            });
+            
             const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${type === 'success' ? 'bg-green-900 text-green-100' : type === 'error' ? 'bg-red-900 text-red-100' : type === 'warning' ? 'bg-yellow-900 text-yellow-100' : 'bg-blue-900 text-blue-100'}`;
+            notification.className = `custom-notification fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 max-w-sm ${type === 'success' ? 'bg-green-900 text-green-100' : type === 'error' ? 'bg-red-900 text-red-100' : type === 'warning' ? 'bg-yellow-900 text-yellow-100' : 'bg-blue-900 text-blue-100'}`;
             notification.innerHTML = `
                 <div class="flex items-center">
                     <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} mr-3 flex-shrink-0"></i>
@@ -1147,7 +1321,9 @@ function app() {
             
             document.body.appendChild(notification);
             
+            // Auto hide setelah 3 detik
             setTimeout(() => {
+                notification.style.opacity = '0';
                 notification.style.transform = 'translateX(100%)';
                 setTimeout(() => {
                     if (notification.parentNode) {
