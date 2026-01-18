@@ -12,7 +12,10 @@ const io = socketIo(server, {
     methods: ["GET", "POST"]
   },
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  // Optimasi untuk audio streaming
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 });
 
 app.use(cors());
@@ -27,24 +30,27 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    activeRooms: Array.from(io.sockets.adapter.rooms.keys()).filter(room => !io.sockets.adapter.rooms.get(room)?.has(room))
+    activeRooms: Array.from(io.sockets.adapter.rooms.keys()).filter(room => !io.sockets.adapter.rooms.get(room)?.has(room)),
+    version: '2.0.0-audio-enhanced'
   });
 });
 
-// Debug endpoint
-app.get('/debug', (req, res) => {
+// Audio quality monitoring endpoint
+app.get('/stats', (req, res) => {
   const rooms = Array.from(io.sockets.adapter.rooms.keys())
     .filter(room => !io.sockets.adapter.rooms.get(room)?.has(room))
     .map(room => ({
       roomId: room,
-      users: Array.from(io.sockets.adapter.rooms.get(room) || []),
-      size: io.sockets.adapter.rooms.get(room)?.size || 0
+      userCount: io.sockets.adapter.rooms.get(room)?.size || 0,
+      users: Array.from(io.sockets.adapter.rooms.get(room) || [])
     }));
   
   res.json({
-    rooms,
+    server: 'Screen Share Audio Enhanced',
+    uptime: process.uptime(),
     totalConnections: io.engine.clientsCount,
-    timestamp: new Date().toISOString()
+    rooms: rooms,
+    memory: process.memoryUsage()
   });
 });
 
@@ -94,6 +100,17 @@ io.on('connection', (socket) => {
   // WebRTC signaling: offer
   socket.on('offer', (data) => {
     console.log(`📤 Offer from ${socket.id} to ${data.to}`);
+    
+    // Log audio information
+    if (data.sdp.sdp && data.sdp.sdp.includes('audio')) {
+      console.log(`🔊 Audio included in offer from ${socket.id}`);
+      
+      // Check for OPUS codec
+      if (data.sdp.sdp.includes('opus')) {
+        console.log(`🎵 OPUS codec detected in offer from ${socket.id}`);
+      }
+    }
+    
     socket.to(data.to).emit('offer', {
       sdp: data.sdp,
       from: socket.id,
@@ -104,6 +121,12 @@ io.on('connection', (socket) => {
   // WebRTC signaling: answer
   socket.on('answer', (data) => {
     console.log(`📥 Answer from ${socket.id} to ${data.to}`);
+    
+    // Log audio information
+    if (data.sdp.sdp && data.sdp.sdp.includes('audio')) {
+      console.log(`🔊 Audio included in answer from ${socket.id}`);
+    }
+    
     socket.to(data.to).emit('answer', {
       sdp: data.sdp,
       from: socket.id,
@@ -135,6 +158,7 @@ io.on('connection', (socket) => {
   socket.on('sharing-started', () => {
     if (socket.roomId) {
       socket.to(socket.roomId).emit('user-sharing-started', socket.id);
+      console.log(`📹 User ${socket.id} started sharing in room ${socket.roomId}`);
     }
   });
   
@@ -142,17 +166,13 @@ io.on('connection', (socket) => {
   socket.on('sharing-stopped', () => {
     if (socket.roomId) {
       socket.to(socket.roomId).emit('user-sharing-stopped', socket.id);
+      console.log(`📹 User ${socket.id} stopped sharing in room ${socket.roomId}`);
     }
   });
   
-  // Audio quality changed
-  socket.on('audio-quality-changed', (data) => {
-    if (socket.roomId) {
-      socket.to(socket.roomId).emit('user-audio-quality-changed', {
-        userId: socket.id,
-        quality: data.quality
-      });
-    }
+  // Audio status update (optional)
+  socket.on('audio-status', (data) => {
+    console.log(`🎵 User ${socket.id} audio status: ${data.status}, quality: ${data.quality}`);
   });
   
   // Disconnect
@@ -171,15 +191,21 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 9631;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🎉 Screen Share App berjalan di port ${PORT}`);
+  console.log(`\n🎉 Screen Share App (Audio Enhanced) berjalan di port ${PORT}`);
   console.log(`🌐 Akses aplikasi melalui:`);
   console.log(`   • Local: http://localhost:${PORT}`);
   console.log(`   • Network: http://${getLocalIP()}:${PORT}`);
-  console.log(`\n📝 Petunjuk:`);
-  console.log(`   1. Buka di browser (Chrome/Edge disarankan)`);
-  console.log(`   2. Buat atau gabung ruangan dengan ID yang sama`);
-  console.log(`   3. Klik "Mulai Bagikan" untuk berbagi layar`);
-  console.log(`   4. Audio sistem dapat diaktifkan/dinonaktifkan\n`);
+  console.log(`   • Stats: http://localhost:${PORT}/stats`);
+  console.log(`\n📝 Fitur Audio Enhanced:`);
+  console.log(`   • Kualitas audio 48kHz`);
+  console.log(`   • Codec OPUS prioritasi`);
+  console.log(`   • Monitoring kualitas real-time`);
+  console.log(`   • Optimasi untuk Chrome & Firefox`);
+  console.log(`\n🔧 Petunjuk:`);
+  console.log(`   1. Gunakan Chrome untuk kualitas audio terbaik`);
+  console.log(`   2. Pastikan izin audio diberikan`);
+  console.log(`   3. Gunakan headset untuk mengurangi echo`);
+  console.log(`   4. Koneksi internet stabil (min 2Mbps upload)\n`);
 });
 
 // Helper function to get local IP
@@ -194,3 +220,15 @@ function getLocalIP() {
   }
   return 'localhost';
 }
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down server...');
+  io.close(() => {
+    console.log('✅ Socket.IO server closed');
+    server.close(() => {
+      console.log('✅ HTTP server closed');
+      process.exit(0);
+    });
+  });
+});
