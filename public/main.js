@@ -39,7 +39,7 @@ function app() {
         
         // Inisialisasi
         init() {
-            console.log('🚀 Aplikasi Screen Share dimulai');
+            // console.log('🚀 Aplikasi Screen Share dimulai');
             this.generateRoomId();
             this.initializeSocket();
             this.setupMobileFeatures();
@@ -81,14 +81,14 @@ function app() {
                     id += chars.charAt(Math.floor(Math.random() * chars.length));
                 }
                 this.roomId = id;
-                console.log('🔑 Generated Room ID:', this.roomId);
+                // console.log('🔑 Generated Room ID:', this.roomId);
                 this.showNotification(`ID Ruangan dibuat: ${id}`, 'info');
             }
         },
         
         // Toggle Audio
         toggleAudio() {
-            console.log('🎵 Audio setting changed to:', this.shareAudio);
+            // console.log('🎵 Audio setting changed to:', this.shareAudio);
             if (this.isSharing) {
                 this.showNotification('Restart screen sharing untuk menerapkan perubahan audio', 'info');
             }
@@ -96,7 +96,7 @@ function app() {
         
         // Inisialisasi Socket.io
         initializeSocket() {
-            console.log('🔌 Menghubungkan ke server...');
+            // console.log('🔌 Menghubungkan ke server...');
             this.socket = io(window.location.origin, {
                 reconnection: true,
                 reconnectionAttempts: 10,
@@ -106,14 +106,14 @@ function app() {
             
             // Event handlers
             this.socket.on('connect', () => {
-                console.log('✅ Terhubung ke server. Socket ID:', this.socket.id);
+                // console.log('✅ Terhubung ke server. Socket ID:', this.socket.id);
                 this.isConnected = true;
                 this.socketId = this.socket.id;
                 this.showNotification('Terhubung ke server', 'success');
             });
             
             this.socket.on('disconnect', () => {
-                console.log('❌ Terputus dari server');
+                // console.log('❌ Terputus dari server');
                 this.isConnected = false;
                 this.showNotification('Terputus dari server', 'error');
             });
@@ -124,8 +124,8 @@ function app() {
             });
             
             this.socket.on('room-joined', (data) => {
-                console.log('🚪 Berhasil bergabung ke ruangan:', data.roomId);
-                console.log('👥 Users in room:', data.users);
+                // console.log('🚪 Berhasil bergabung ke ruangan:', data.roomId);
+                // console.log('👥 Users in room:', data.users);
                 this.usersInRoom = data.userCount;
                 this.showNotification(`Bergabung ke ruangan ${data.roomId}`, 'success');
                 
@@ -141,41 +141,41 @@ function app() {
             });
             
             this.socket.on('user-connected', (userId) => {
-                console.log('👤 User connected:', userId);
+                // console.log('👤 User connected:', userId);
                 this.usersInRoom++;
                 this.showNotification('Pengguna baru bergabung', 'info');
                 this.createPeerConnection(userId, true);
             });
             
             this.socket.on('user-disconnected', (userId) => {
-                console.log('👤 User disconnected:', userId);
+                // console.log('👤 User disconnected:', userId);
                 this.usersInRoom--;
                 this.closePeerConnection(userId);
                 this.showNotification('Pengguna keluar dari ruangan', 'info');
             });
             
             this.socket.on('offer', async (data) => {
-                console.log('📨 Received offer from:', data.from);
+                // console.log('📨 Received offer from:', data.from);
                 await this.handleOffer(data);
             });
             
             this.socket.on('answer', async (data) => {
-                console.log('📨 Received answer from:', data.from);
+                // console.log('📨 Received answer from:', data.from);
                 await this.handleAnswer(data);
             });
             
             this.socket.on('ice-candidate', async (data) => {
-                console.log('🧊 Received ICE candidate from:', data.from);
+                // console.log('🧊 Received ICE candidate from:', data.from);
                 await this.handleIceCandidate(data);
             });
             
             this.socket.on('user-sharing-started', (userId) => {
-                console.log('📹 User started sharing:', userId);
+                // console.log('📹 User started sharing:', userId);
                 this.showNotification('Pengguna lain mulai berbagi layar', 'info');
             });
             
             this.socket.on('user-sharing-stopped', (userId) => {
-                console.log('📹 User stopped sharing:', userId);
+                // console.log('📹 User stopped sharing:', userId);
                 this.showNotification('Pengguna lain berhenti berbagi layar', 'info');
             });
         },
@@ -183,7 +183,7 @@ function app() {
         // Bergabung ke ruangan
         joinRoom() {
             if (this.roomId && !this.isInRoom) {
-                console.log('🚪 Joining room:', this.roomId);
+                // console.log('🚪 Joining room:', this.roomId);
                 this.socket.emit('join-room', this.roomId);
                 this.isInRoom = true;
                 this.showNotification(`Bergabung ke ruangan ${this.roomId}`, 'success');
@@ -193,7 +193,7 @@ function app() {
         // Keluar dari ruangan
         leaveRoom() {
             if (this.isInRoom) {
-                console.log('🚪 Leaving room:', this.roomId);
+                // console.log('🚪 Leaving room:', this.roomId);
                 this.stopScreenShare();
                 
                 // Tutup semua koneksi peer
@@ -212,7 +212,7 @@ function app() {
         // Mulai berbagi layar
         async startScreenShare() {
             try {
-                console.log('🎬 Starting screen share with audio:', this.shareAudio);
+                // console.log('🎬 Starting screen share with audio:', this.shareAudio);
                 
                 // Konfigurasi untuk getDisplayMedia
                 const displayOptions = {
@@ -241,7 +241,7 @@ function app() {
                 if (localVideo) {
                     localVideo.srcObject = this.localStream;
                     this.isSharing = true;
-                    console.log('✅ Screen sharing started');
+                    // console.log('✅ Screen sharing started');
                     this.showNotification('Berbagi layar dimulai', 'success');
                     
                     // Switch to video view on mobile when sharing starts
@@ -260,7 +260,7 @@ function app() {
                 const videoTrack = this.localStream.getVideoTracks()[0];
                 if (videoTrack) {
                     videoTrack.onended = () => {
-                        console.log('🛑 Screen sharing stopped by browser');
+                        // console.log('🛑 Screen sharing stopped by browser');
                         this.stopScreenShare();
                     };
                 }
@@ -314,7 +314,7 @@ function app() {
             // Kirim event ke server
             this.socket.emit('sharing-stopped');
             
-            console.log('🛑 Screen sharing stopped');
+            // console.log('🛑 Screen sharing stopped');
             this.showNotification('Berbagi layar dihentikan', 'info');
         },
         
@@ -322,11 +322,11 @@ function app() {
         createPeerConnection(userId, isInitiator = false) {
             // Cek apakah koneksi sudah ada
             if (this.peerConnections[userId]) {
-                console.log('⚠️ Peer connection already exists for:', userId);
+                // console.log('⚠️ Peer connection already exists for:', userId);
                 return this.peerConnections[userId];
             }
             
-            console.log('🔗 Creating peer connection for:', userId, 'Initiator:', isInitiator);
+            // console.log('🔗 Creating peer connection for:', userId, 'Initiator:', isInitiator);
             
             // Buat RTCPeerConnection baru
             const peerConnection = new RTCPeerConnection(this.configuration);
@@ -336,27 +336,27 @@ function app() {
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, this.localStream);
-                    console.log('➕ Added track:', track.kind, 'to peer:', userId);
+                    // console.log('➕ Added track:', track.kind, 'to peer:', userId);
                 });
             }
             
             // ICE Candidate handler
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log('🧊 Sending ICE candidate to:', userId);
+                    // console.log('🧊 Sending ICE candidate to:', userId);
                     this.socket.emit('ice-candidate', {
                         candidate: event.candidate,
                         to: userId,
                         room: this.roomId
                     });
                 } else {
-                    console.log('✅ All ICE candidates sent to:', userId);
+                    // console.log('✅ All ICE candidates sent to:', userId);
                 }
             };
             
             // Track handler (menerima stream dari remote)
             peerConnection.ontrack = (event) => {
-                console.log('📹 Received remote track from:', userId);
+                // console.log('📹 Received remote track from:', userId);
                 if (event.streams && event.streams[0]) {
                     this.addRemoteVideo(userId, event.streams[0]);
                 }
@@ -365,10 +365,10 @@ function app() {
             // ICE Connection State handler
             peerConnection.oniceconnectionstatechange = () => {
                 const state = peerConnection.iceConnectionState;
-                console.log(`ICE state for ${userId}:`, state);
+                // console.log(`ICE state for ${userId}:`, state);
                 
                 if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                    console.log(`⚠️ ICE connection failed for ${userId}`);
+                    // console.log(`⚠️ ICE connection failed for ${userId}`);
                     setTimeout(() => {
                         if (peerConnection.iceConnectionState !== 'connected' && 
                             peerConnection.iceConnectionState !== 'checking') {
@@ -380,7 +380,7 @@ function app() {
             
             // Connection State handler
             peerConnection.onconnectionstatechange = () => {
-                console.log(`Connection state for ${userId}:`, peerConnection.connectionState);
+                // console.log(`Connection state for ${userId}:`, peerConnection.connectionState);
             };
             
             // Buat offer jika kita adalah initiator
@@ -396,7 +396,7 @@ function app() {
         // Buat Offer
         async createOffer(userId, peerConnection) {
             try {
-                console.log('📤 Creating offer for:', userId);
+                // console.log('📤 Creating offer for:', userId);
                 
                 const offerOptions = {
                     offerToReceiveAudio: true,
@@ -406,7 +406,7 @@ function app() {
                 const offer = await peerConnection.createOffer(offerOptions);
                 await peerConnection.setLocalDescription(offer);
                 
-                console.log('📤 Sending offer to:', userId);
+                // console.log('📤 Sending offer to:', userId);
                 this.socket.emit('offer', {
                     sdp: peerConnection.localDescription,
                     to: userId,
@@ -421,19 +421,19 @@ function app() {
         // Handle Offer dari remote
         async handleOffer(data) {
             try {
-                console.log('📥 Handling offer from:', data.from);
+                // console.log('📥 Handling offer from:', data.from);
                 
                 const peerConnection = this.createPeerConnection(data.from);
                 
                 // Set remote description
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                console.log('✅ Remote description set for:', data.from);
+                // console.log('✅ Remote description set for:', data.from);
                 
                 // Buat dan kirim answer
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
                 
-                console.log('📤 Sending answer to:', data.from);
+                // console.log('📤 Sending answer to:', data.from);
                 this.socket.emit('answer', {
                     sdp: peerConnection.localDescription,
                     to: data.from,
@@ -448,12 +448,12 @@ function app() {
         // Handle Answer dari remote
         async handleAnswer(data) {
             try {
-                console.log('📥 Handling answer from:', data.from);
+                // console.log('📥 Handling answer from:', data.from);
                 
                 const peerConnection = this.peerConnections[data.from];
                 if (peerConnection) {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    console.log('✅ Answer processed for:', data.from);
+                    // console.log('✅ Answer processed for:', data.from);
                 } else {
                     console.error('❌ No peer connection found for:', data.from);
                 }
@@ -469,7 +469,7 @@ function app() {
                 const peerConnection = this.peerConnections[data.from];
                 if (peerConnection && data.candidate) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    console.log('✅ ICE candidate added for:', data.from);
+                    // console.log('✅ ICE candidate added for:', data.from);
                 }
             } catch (error) {
                 console.error('❌ Error adding ICE candidate:', error);
@@ -516,7 +516,7 @@ function app() {
                 delete this.peerConnections[userId];
             }
             this.removeRemoteVideo(userId);
-            console.log('🔒 Closed peer connection for:', userId);
+            // console.log('🔒 Closed peer connection for:', userId);
         },
         
         // Tambahkan video remote
