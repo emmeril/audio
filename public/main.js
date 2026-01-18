@@ -9,6 +9,7 @@ function app() {
         usersInRoom: 1,
         remoteVideos: [],
         socketId: null,
+        mobileMenuActive: 'video', // 'controls' atau 'video'
         
         // Objek WebRTC
         socket: null,
@@ -41,6 +42,34 @@ function app() {
             console.log('🚀 Aplikasi Screen Share dimulai');
             this.generateRoomId();
             this.initializeSocket();
+            this.setupMobileFeatures();
+        },
+        
+        // Setup fitur mobile
+        setupMobileFeatures() {
+            // Deteksi perangkat mobile
+            this.isMobile = window.innerWidth < 1024;
+            
+            // Update state saat resize
+            window.addEventListener('resize', () => {
+                this.isMobile = window.innerWidth < 1024;
+            });
+            
+            // Cegah zoom pada input di iOS
+            document.addEventListener('touchstart', function(event) {
+                if (event.touches.length > 1) {
+                    event.preventDefault();
+                }
+            }, { passive: false });
+            
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function(event) {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
         },
         
         // Generate Room ID
@@ -53,6 +82,7 @@ function app() {
                 }
                 this.roomId = id;
                 console.log('🔑 Generated Room ID:', this.roomId);
+                this.showNotification(`ID Ruangan dibuat: ${id}`, 'info');
             }
         },
         
@@ -98,6 +128,11 @@ function app() {
                 console.log('👥 Users in room:', data.users);
                 this.usersInRoom = data.userCount;
                 this.showNotification(`Bergabung ke ruangan ${data.roomId}`, 'success');
+                
+                // Switch to video view on mobile after joining
+                if (window.innerWidth < 1024) {
+                    this.mobileMenuActive = 'video';
+                }
                 
                 // Buat koneksi dengan user yang sudah ada
                 data.users.forEach(userId => {
@@ -208,6 +243,11 @@ function app() {
                     this.isSharing = true;
                     console.log('✅ Screen sharing started');
                     this.showNotification('Berbagi layar dimulai', 'success');
+                    
+                    // Switch to video view on mobile when sharing starts
+                    if (window.innerWidth < 1024) {
+                        this.mobileMenuActive = 'video';
+                    }
                     
                     // Kirim event ke server
                     this.socket.emit('sharing-started');
@@ -526,16 +566,16 @@ function app() {
                 
                 // Buat wrapper untuk video
                 const videoWrapper = document.createElement('div');
-                videoWrapper.className = 'video-container h-64 md:h-80';
+                videoWrapper.className = 'video-container h-48 md:h-64 lg:h-80';
                 
                 // Badge user
                 const userLabel = document.createElement('div');
-                userLabel.className = 'absolute bottom-4 left-4 bg-black bg-opacity-70 px-3 py-2 rounded-lg text-sm';
-                userLabel.innerHTML = `<i class="fas fa-user mr-2"></i>User ${videoData.userId.substring(0, 8)}`;
+                userLabel.className = 'absolute bottom-3 left-3 md:bottom-4 md:left-4 bg-black bg-opacity-70 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm';
+                userLabel.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i>User ${videoData.userId.substring(0, 6)}`;
                 
                 // LIVE badge
                 const liveBadge = document.createElement('div');
-                liveBadge.className = 'live-badge absolute top-4 left-4';
+                liveBadge.className = 'live-badge absolute top-3 left-3 md:top-4 md:left-4 text-xs md:text-sm';
                 liveBadge.innerHTML = '<i class="fas fa-circle animate-pulse"></i> LIVE';
                 
                 videoWrapper.appendChild(videoElement);
@@ -549,7 +589,7 @@ function app() {
         showNotification(message, type = 'info') {
             // Buat notifikasi sederhana
             const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 ${
+            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${
                 type === 'success' ? 'bg-green-900 text-green-100' :
                 type === 'error' ? 'bg-red-900 text-red-100' :
                 'bg-blue-900 text-blue-100'
@@ -559,8 +599,8 @@ function app() {
                     <i class="fas fa-${
                         type === 'success' ? 'check-circle' :
                         type === 'error' ? 'exclamation-circle' : 'info-circle'
-                    } mr-3"></i>
-                    <span>${message}</span>
+                    } mr-3 flex-shrink-0"></i>
+                    <span class="text-sm md:text-base">${message}</span>
                 </div>
             `;
             
@@ -570,7 +610,9 @@ function app() {
             setTimeout(() => {
                 notification.style.transform = 'translateX(100%)';
                 setTimeout(() => {
-                    document.body.removeChild(notification);
+                    if (notification.parentNode) {
+                        document.body.removeChild(notification);
+                    }
                 }, 300);
             }, 3000);
         }
