@@ -401,49 +401,49 @@
                             </button>
                         </div>
                         
-                        <!-- Di bagian Audio Quality Monitor -->
-<div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="isSharing">
-    <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
-        <i class="fas fa-chart-line mr-2 text-blue-500"></i>
-        Monitor Audio Stabil
-    </p>
-    <div class="space-y-2">
-        <div class="flex justify-between text-xs md:text-sm">
-            <span class="text-gray-400">Status:</span>
-            <span class="font-medium" x-text="audioMeterValue > 0.1 ? 'Aktif (100% Fixed)' : 'Diam'"></span>
-        </div>
-        <div class="flex justify-between text-xs md:text-sm">
-            <span class="text-gray-400">Kualitas:</span>
-            <span class="font-medium">
-                <i class="fas fa-signal" :class="{
-                    'text-green-500': audioQuality === 'excellent',
-                    'text-blue-500': audioQuality === 'good',
-                    'text-yellow-500': audioQuality === 'fair',
-                    'text-red-500': audioQuality === 'poor'
-                }"></i>
-                <span x-text="audioQuality === 'excellent' ? 'Sangat Baik' : 
-                    audioQuality === 'good' ? 'Baik' : 
-                    audioQuality === 'fair' ? 'Cukup' : 
-                    audioQuality === 'poor' ? 'Rendah' : 'Mengecek...'"></span>
-            </span>
-        </div>
-        <div class="audio-quality-indicator">
-            <div class="audio-quality-bar" :class="{
-                'quality-excellent': audioQuality === 'excellent',
-                'quality-good': audioQuality === 'good',
-                'quality-fair': audioQuality === 'fair',
-                'quality-poor': audioQuality === 'poor'
-            }" :style="{ width: audioQuality === 'excellent' ? '100%' : 
-                audioQuality === 'good' ? '75%' : 
-                audioQuality === 'fair' ? '50%' : 
-                audioQuality === 'poor' ? '25%' : '0%' }"></div>
-        </div>
-        <div class="text-xs text-gray-500 text-center" x-show="audioBitrate > 0">
-            Volume: <span class="font-bold">100% (Fixed)</span> • Bitrate: <span x-text="audioBitrate"></span> kbps • 
-            Stabilizer: <span class="font-bold text-green-400" x-text="audioStabilizerEnabled ? 'ADVANCED ON' : 'OFF'"></span>
-        </div>
-    </div>
-</div>
+                        <!-- Audio Quality Monitor -->
+                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="isSharing">
+                            <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
+                                <i class="fas fa-chart-line mr-2 text-blue-500"></i>
+                                Monitor Audio Stabil
+                            </p>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-xs md:text-sm">
+                                    <span class="text-gray-400">Status:</span>
+                                    <span class="font-medium" x-text="audioMeterValue > 0.1 ? 'Aktif' : 'Diam'"></span>
+                                </div>
+                                <div class="flex justify-between text-xs md:text-sm">
+                                    <span class="text-gray-400">Kualitas:</span>
+                                    <span class="font-medium">
+                                        <i class="fas fa-signal" :class="{
+                                            'text-green-500': audioQuality === 'excellent',
+                                            'text-blue-500': audioQuality === 'good',
+                                            'text-yellow-500': audioQuality === 'fair',
+                                            'text-red-500': audioQuality === 'poor'
+                                        }"></i>
+                                        <span x-text="audioQuality === 'excellent' ? 'Sangat Baik' : 
+                                            audioQuality === 'good' ? 'Baik' : 
+                                            audioQuality === 'fair' ? 'Cukup' : 
+                                            audioQuality === 'poor' ? 'Rendah' : 'Mengecek...'"></span>
+                                    </span>
+                                </div>
+                                <div class="audio-quality-indicator">
+                                    <div class="audio-quality-bar" :class="{
+                                        'quality-excellent': audioQuality === 'excellent',
+                                        'quality-good': audioQuality === 'good',
+                                        'quality-fair': audioQuality === 'fair',
+                                        'quality-poor': audioQuality === 'poor'
+                                    }" :style="{ width: audioQuality === 'excellent' ? '100%' : 
+                                        audioQuality === 'good' ? '75%' : 
+                                        audioQuality === 'fair' ? '50%' : 
+                                        audioQuality === 'poor' ? '25%' : '0%' }"></div>
+                                </div>
+                                <div class="text-xs text-gray-500 text-center" x-show="audioBitrate > 0">
+                                    Volume: 100% • Bitrate: <span x-text="audioBitrate"></span> kbps • 
+                                    Stabilizer: <span x-text="audioStabilizerEnabled ? 'ON' : 'OFF'"></span>
+                                </div>
+                            </div>
+                        </div>
                         
                         <!-- Status Berbagi -->
                         <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
