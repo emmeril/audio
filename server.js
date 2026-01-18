@@ -31,6 +31,23 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Debug endpoint
+app.get('/debug', (req, res) => {
+  const rooms = Array.from(io.sockets.adapter.rooms.keys())
+    .filter(room => !io.sockets.adapter.rooms.get(room)?.has(room))
+    .map(room => ({
+      roomId: room,
+      users: Array.from(io.sockets.adapter.rooms.get(room) || []),
+      size: io.sockets.adapter.rooms.get(room)?.size || 0
+    }));
+  
+  res.json({
+    rooms,
+    totalConnections: io.engine.clientsCount,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Socket.io handling
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
@@ -125,6 +142,16 @@ io.on('connection', (socket) => {
   socket.on('sharing-stopped', () => {
     if (socket.roomId) {
       socket.to(socket.roomId).emit('user-sharing-stopped', socket.id);
+    }
+  });
+  
+  // Audio quality changed
+  socket.on('audio-quality-changed', (data) => {
+    if (socket.roomId) {
+      socket.to(socket.roomId).emit('user-audio-quality-changed', {
+        userId: socket.id,
+        quality: data.quality
+      });
     }
   });
   
