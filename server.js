@@ -13,7 +13,6 @@ const io = socketIo(server, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  // Optimasi untuk audio streaming
   transports: ['websocket', 'polling'],
   allowEIO3: true
 });
@@ -31,7 +30,7 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     activeRooms: Array.from(io.sockets.adapter.rooms.keys()).filter(room => !io.sockets.adapter.rooms.get(room)?.has(room)),
-    version: '2.0.0-audio-enhanced'
+    version: '2.1.0-audio-stabilized'
   });
 });
 
@@ -46,7 +45,7 @@ app.get('/stats', (req, res) => {
     }));
   
   res.json({
-    server: 'Screen Share Audio Enhanced',
+    server: 'Screen Share Audio Stabilized',
     uptime: process.uptime(),
     totalConnections: io.engine.clientsCount,
     rooms: rooms,
@@ -104,6 +103,12 @@ io.on('connection', (socket) => {
     // Log audio information
     if (data.sdp.sdp && data.sdp.sdp.includes('audio')) {
       console.log(`🔊 Audio included in offer from ${socket.id}`);
+      
+      // Extract audio bandwidth
+      const audioMatch = data.sdp.sdp.match(/b=AS:(\d+)/);
+      if (audioMatch) {
+        console.log(`🎚️ Audio bandwidth: ${audioMatch[1]} kbps`);
+      }
       
       // Check for OPUS codec
       if (data.sdp.sdp.includes('opus')) {
@@ -170,9 +175,17 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Audio status update (optional)
+  // Audio status update
   socket.on('audio-status', (data) => {
-    console.log(`🎵 User ${socket.id} audio status: ${data.status}, quality: ${data.quality}`);
+    console.log(`🎵 User ${socket.id} audio status: ${data.status}, volume: ${data.volume}, quality: ${data.quality}`);
+  });
+  
+  // Audio volume update
+  socket.on('audio-volume', (data) => {
+    socket.to(socket.roomId).emit('remote-audio-volume', {
+      userId: socket.id,
+      volume: data.volume
+    });
   });
   
   // Disconnect
@@ -191,21 +204,22 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 9631;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🎉 Screen Share App (Audio Enhanced) berjalan di port ${PORT}`);
+  console.log(`\n🎉 Screen Share App (Audio Stabilized) berjalan di port ${PORT}`);
   console.log(`🌐 Akses aplikasi melalui:`);
   console.log(`   • Local: http://localhost:${PORT}`);
   console.log(`   • Network: http://${getLocalIP()}:${PORT}`);
   console.log(`   • Stats: http://localhost:${PORT}/stats`);
-  console.log(`\n📝 Fitur Audio Enhanced:`);
-  console.log(`   • Kualitas audio 48kHz`);
-  console.log(`   • Codec OPUS prioritasi`);
+  console.log(`\n📝 Fitur Audio Stabilized:`);
+  console.log(`   • Volume stabil dengan compressor`);
+  console.log(`   • Kontrol volume individual`);
+  console.log(`   • Normalisasi audio otomatis`);
   console.log(`   • Monitoring kualitas real-time`);
-  console.log(`   • Optimasi untuk Chrome & Firefox`);
   console.log(`\n🔧 Petunjuk:`);
   console.log(`   1. Gunakan Chrome untuk kualitas audio terbaik`);
-  console.log(`   2. Pastikan izin audio diberikan`);
+  console.log(`   2. Atur volume sistem ke 70-80%`);
   console.log(`   3. Gunakan headset untuk mengurangi echo`);
-  console.log(`   4. Koneksi internet stabil (min 2Mbps upload)\n`);
+  console.log(`   4. Koneksi internet stabil (min 2Mbps upload)`);
+  console.log(`   5. Atur volume di kontrol aplikasi, bukan di sistem\n`);
 });
 
 // Helper function to get local IP
