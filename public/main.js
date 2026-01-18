@@ -18,7 +18,6 @@ function app() {
         currentFullscreenVideo: null,
         
         // State audio
-        audioVolume: 80, // 0-100
         audioQuality: 'checking',
         audioBitrate: 0,
         audioLevels: [5, 10, 15, 10, 5],
@@ -36,9 +35,8 @@ function app() {
         
         // Monitoring intervals
         audioMonitoringIntervals: {},
-        volumeAdjustmentInterval: null,
+        audioQualityInterval: null,
         audioVisualizerInterval: null,
-        audioMeterInterval: null,
         
         // Objek WebRTC
         socket: null,
@@ -315,46 +313,6 @@ function app() {
             }
         },
         
-        // Set Audio Volume
-        setAudioVolume(volume) {
-            const newVolume = Math.max(0, Math.min(1, volume));
-            this.audioVolume = Math.round(newVolume * 100);
-            
-            // Update gain node jika ada
-            if (this.audioGainNode && this.audioContext) {
-                const gainValue = newVolume * 0.8 + 0.2; // Range 0.2-1.0 untuk stabilisasi
-                this.audioGainNode.gain.value = gainValue;
-                console.log('🔊 Volume set to:', this.audioVolume + '%', 'Gain:', gainValue.toFixed(2));
-            }
-            
-            // Kirim update volume ke server (untuk logging)
-            if (this.socket && this.isSharing) {
-                this.socket.emit('audio-volume', {
-                    volume: this.audioVolume
-                });
-            }
-            
-            // Update volume untuk remote videos
-            this.updateRemoteAudioVolumes();
-        },
-        
-        // Update volume untuk semua video remote
-        updateRemoteAudioVolumes() {
-            const remoteVideos = document.querySelectorAll('video[id^="remoteVideo-"]');
-            const volume = this.audioVolume / 100;
-            remoteVideos.forEach(video => {
-                video.volume = volume;
-            });
-        },
-        
-        // Toggle Audio
-        toggleAudio() {
-            console.log('🎵 Audio setting changed to:', this.shareAudio);
-            if (this.isSharing) {
-                this.showNotification('Restart screen sharing untuk menerapkan perubahan audio', 'info');
-            }
-        },
-        
         // Setup Audio Processing dengan Web Audio API
         setupAudioProcessing(audioTrack) {
             try {
@@ -379,9 +337,9 @@ function app() {
                 this.audioCompressor.attack.value = 0.003; // seconds
                 this.audioCompressor.release.value = 0.25; // seconds
                 
-                // Buat gain node untuk kontrol volume
+                // Buat gain node untuk kontrol volume (default 100%)
                 this.audioGainNode = this.audioContext.createGain();
-                this.audioGainNode.gain.value = (this.audioVolume / 100) * 0.8 + 0.2;
+                this.audioGainNode.gain.value = 1.0; // 100%
                 
                 // Buat analyser untuk visualisasi
                 this.audioAnalyser = this.audioContext.createAnalyser();
@@ -400,7 +358,7 @@ function app() {
                 // Dapatkan processed track
                 this.processedStream = this.audioDestination.stream;
                 
-                console.log('🔧 Audio processing setup complete');
+                console.log('🔧 Audio processing setup complete (Volume: 100%)');
                 console.log('⚙️ Compressor settings:', {
                     threshold: this.audioCompressor.threshold.value,
                     ratio: this.audioCompressor.ratio.value,
@@ -446,7 +404,7 @@ function app() {
         
         // Update audio quality status
         updateAudioQuality() {
-            if (!this.isSharing || !this.shareAudio) {
+            if (!this.isSharing) {
                 this.audioQuality = 'checking';
                 this.audioBitrate = 0;
                 return;
@@ -488,7 +446,7 @@ function app() {
             if (this.socket && this.isSharing) {
                 this.socket.emit('audio-status', {
                     status: this.audioQuality,
-                    volume: this.audioVolume,
+                    volume: 100, // Selalu 100%
                     quality: this.audioBitrate
                 });
             }
@@ -593,10 +551,6 @@ function app() {
                 console.log('📹 User stopped sharing:', userId);
                 this.showNotification('Pengguna lain berhenti berbagi layar', 'info');
             });
-            
-            this.socket.on('remote-audio-volume', (data) => {
-                console.log('🔊 Remote audio volume update:', data.userId, data.volume + '%');
-            });
         },
         
         // Bergabung ke ruangan
@@ -638,9 +592,9 @@ function app() {
         // Mulai berbagi layar dengan audio stabil
         async startScreenShare() {
             try {
-                console.log('🎬 Starting screen share with audio:', this.shareAudio);
+                console.log('🎬 Starting screen share with audio (always enabled)');
                 
-                // Konfigurasi media constraints dengan optimasi audio stabil
+                // Konfigurasi media constraints dengan audio selalu aktif
                 const displayOptions = {
                     video: {
                         cursor: "always",
@@ -648,13 +602,8 @@ function app() {
                         frameRate: { ideal: 30, max: 60 },
                         width: { ideal: 1920, max: 1920 },
                         height: { ideal: 1080, max: 1080 }
-                    }
-                };
-                
-                // Konfigurasi audio berdasarkan browser
-                if (this.shareAudio) {
-                    // Nonaktifkan semua pengolahan otomatis untuk kontrol manual
-                    displayOptions.audio = {
+                    },
+                    audio: {
                         autoGainControl: false,
                         echoCancellation: false,
                         noiseSuppression: false,
@@ -663,14 +612,14 @@ function app() {
                         sampleSize: { ideal: 16 },
                         suppressLocalAudioPlayback: false,
                         volume: { ideal: 1.0 }
-                    };
-                }
+                    }
+                };
                 
                 // Minta izin untuk berbagi layar
                 this.localStream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
                 
                 // Optimasi audio track
-                if (this.shareAudio && this.localStream.getAudioTracks().length > 0) {
+                if (this.localStream.getAudioTracks().length > 0) {
                     const originalAudioTrack = this.localStream.getAudioTracks()[0];
                     
                     console.log('🔊 Original audio track:', {
@@ -686,7 +635,7 @@ function app() {
                     if (processedAudioTrack && processedAudioTrack !== originalAudioTrack) {
                         this.localStream.removeTrack(originalAudioTrack);
                         this.localStream.addTrack(processedAudioTrack);
-                        console.log('✅ Audio processing applied');
+                        console.log('✅ Audio processing applied (Volume: 100%)');
                         this.audioStabilizerEnabled = true;
                     } else {
                         console.log('⚠️ Using original audio track (no processing)');
@@ -713,10 +662,7 @@ function app() {
                     
                     // Start audio monitoring
                     this.startAudioQualityMonitoring();
-                    
-                    // Start volume meter
-                    this.startVolumeMeter();
-                } else if (this.shareAudio) {
+                } else {
                     console.warn('⚠️ No audio track available');
                     this.showNotification('Audio sistem tidak tersedia', 'warning');
                 }
@@ -731,7 +677,7 @@ function app() {
                     console.log('🎵 Audio tracks:', this.localStream.getAudioTracks().length);
                     console.log('📹 Video tracks:', this.localStream.getVideoTracks().length);
                     
-                    this.showNotification('Berbagi layar dimulai' + (this.shareAudio ? ' dengan audio stabil' : ''), 'success');
+                    this.showNotification('Berbagi layar dimulai dengan audio stabil (100%)', 'success');
                     
                     // Switch to video view on mobile
                     if (window.innerWidth < 1024) {
@@ -765,12 +711,7 @@ function app() {
                 } else if (error.name === 'NotReadableError') {
                     errorMessage = 'Tidak dapat membaca layar. Mungkin aplikasi lain sedang menggunakan kamera/layar.';
                 } else if (error.name === 'OverconstrainedError') {
-                    if (this.shareAudio) {
-                        errorMessage = 'Konfigurasi audio tidak didukung. Coba nonaktifkan audio sistem.';
-                        this.shareAudio = false;
-                    } else {
-                        errorMessage = 'Konfigurasi video tidak didukung. Coba pilih layar yang berbeda.';
-                    }
+                    errorMessage = 'Konfigurasi tidak didukung. Coba pilih layar yang berbeda.';
                 } else if (error.name === 'TypeError') {
                     errorMessage = 'Browser tidak mendukung fitur berbagi layar. Gunakan Chrome atau Edge.';
                 } else {
@@ -779,37 +720,6 @@ function app() {
                 
                 this.showNotification(errorMessage, 'error');
             }
-        },
-        
-        // Start volume meter
-        startVolumeMeter() {
-            if (this.audioMeterInterval) {
-                clearInterval(this.audioMeterInterval);
-            }
-            
-            this.audioMeterInterval = setInterval(() => {
-                if (!this.isSharing || !this.shareAudio || !this.audioAnalyser) {
-                    this.audioMeterValue = 0;
-                    return;
-                }
-                
-                try {
-                    const dataArray = new Uint8Array(this.audioAnalyser.frequencyBinCount);
-                    this.audioAnalyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        sum += dataArray[i];
-                    }
-                    const average = sum / dataArray.length;
-                    
-                    // Normalize to 0-1 range
-                    this.audioMeterValue = Math.min(1, average / 128);
-                    
-                } catch (error) {
-                    console.warn('⚠️ Error reading audio meter:', error);
-                }
-            }, 200);
         },
         
         // Berhenti berbagi layar
@@ -837,9 +747,6 @@ function app() {
             // Hentikan monitoring intervals
             if (this.audioQualityInterval) {
                 clearInterval(this.audioQualityInterval);
-            }
-            if (this.audioMeterInterval) {
-                clearInterval(this.audioMeterInterval);
             }
             
             // Hentikan semua track di peer connections
@@ -874,15 +781,13 @@ function app() {
             this.peerConnections[userId] = peerConnection;
             
             // Tambahkan transceiver untuk audio
-            if (this.shareAudio) {
-                try {
-                    peerConnection.addTransceiver('audio', {
-                        direction: 'sendrecv',
-                        streams: this.localStream ? [this.localStream] : []
-                    });
-                } catch (error) {
-                    console.warn('⚠️ Could not add audio transceiver:', error);
-                }
+            try {
+                peerConnection.addTransceiver('audio', {
+                    direction: 'sendrecv',
+                    streams: this.localStream ? [this.localStream] : []
+                });
+            } catch (error) {
+                console.warn('⚠️ Could not add audio transceiver:', error);
             }
             
             // Tambahkan local stream jika ada
@@ -1249,7 +1154,7 @@ function app() {
                     videoElement.autoplay = true;
                     videoElement.playsInline = true;
                     videoElement.className = 'w-full h-full object-cover';
-                    videoElement.volume = this.audioVolume / 100;
+                    videoElement.volume = 1.0; // Volume default 100%
                 }
                 
                 if (videoElement.srcObject !== videoData.stream) {

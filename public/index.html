@@ -129,64 +129,6 @@
         input[type="text"]::placeholder {
             color: rgba(255, 255, 255, 0.5);
         }
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 30px;
-        }
-        @media (max-width: 640px) {
-            .toggle-switch {
-                width: 50px;
-                height: 25px;
-            }
-        }
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #374151;
-            border-radius: 34px;
-            transition: .4s;
-        }
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 22px;
-            width: 22px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            border-radius: 50%;
-            transition: .4s;
-        }
-        @media (max-width: 640px) {
-            .toggle-slider:before {
-                height: 18px;
-                width: 18px;
-                left: 3px;
-                bottom: 3.5px;
-            }
-        }
-        input:checked + .toggle-slider {
-            background-color: #3b82f6;
-        }
-        input:checked + .toggle-slider:before {
-            transform: translateX(30px);
-        }
-        @media (max-width: 640px) {
-            input:checked + .toggle-slider:before {
-                transform: translateX(25px);
-            }
-        }
         
         /* Mobile-specific styles */
         .mobile-bottom-nav {
@@ -289,63 +231,6 @@
             background: rgba(59, 130, 246, 0.9);
         }
         
-        /* Volume slider styles */
-        input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
-            background: transparent;
-            cursor: pointer;
-            width: 100%;
-        }
-        
-        input[type="range"]::-webkit-slider-track {
-            background: rgba(255, 255, 255, 0.1);
-            height: 8px;
-            border-radius: 4px;
-        }
-        
-        input[type="range"]::-moz-range-track {
-            background: rgba(255, 255, 255, 0.1);
-            height: 8px;
-            border-radius: 4px;
-        }
-        
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            background: #3b82f6;
-            cursor: pointer;
-            border: 2px solid #1e40af;
-            margin-top: -6px;
-        }
-        
-        input[type="range"]::-moz-range-thumb {
-            height: 20px;
-            width: 20px;
-            border-radius: 50%;
-            background: #3b82f6;
-            cursor: pointer;
-            border: 2px solid #1e40af;
-        }
-        
-        input[type="range"]:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        input[type="range"]:disabled::-webkit-slider-thumb {
-            background: #6b7280;
-            border-color: #4b5563;
-        }
-        
-        input[type="range"]:disabled::-moz-range-thumb {
-            background: #6b7280;
-            border-color: #4b5563;
-        }
-        
         /* Audio visualization */
         .audio-visualizer {
             display: flex;
@@ -399,24 +284,6 @@
         .notification.info {
             background: rgba(59, 130, 246, 0.9);
             border-left: 4px solid #1d4ed8;
-        }
-        
-        /* Volume meter */
-        .volume-meter {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-top: 8px;
-        }
-        
-        .volume-level {
-            height: 100%;
-            background: linear-gradient(90deg, #3b82f6, #60a5fa);
-            border-radius: 3px;
-            width: 0%;
-            transition: width 0.3s;
         }
     </style>
 </head>
@@ -534,59 +401,11 @@
                             </button>
                         </div>
                         
-                        <!-- Toggle Audio -->
-                        <div class="flex items-center justify-between p-3 md:p-4 bg-gray-800 rounded-xl">
-                            <div class="flex items-center">
-                                <div class="p-2 bg-blue-900 rounded-lg mr-3">
-                                    <i class="fas fa-volume-up text-base md:text-lg"></i>
-                                </div>
-                                <div>
-                                    <p class="font-semibold text-sm md:text-base">Audio Sistem</p>
-                                    <p class="text-xs md:text-sm text-gray-400">Stabil dengan compressor</p>
-                                </div>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" x-model="shareAudio" @change="toggleAudio()">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        
-                        <!-- Kontrol Volume -->
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="isSharing && shareAudio">
-                            <p class="font-semibold mb-2 flex items-center justify-between text-sm md:text-base">
-                                <span>
-                                    <i class="fas fa-volume-up mr-2 text-blue-500"></i>
-                                    Kontrol Volume
-                                </span>
-                                <span class="text-xs text-gray-400" x-text="Math.round(audioVolume * 100) + '%'"></span>
-                            </p>
-                            <div class="space-y-2">
-                                <input 
-                                    type="range" 
-                                    min="0" 
-                                    max="100" 
-                                    step="5"
-                                    x-model="audioVolume"
-                                    @input="setAudioVolume(audioVolume / 100)"
-                                    class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                                    :disabled="!isSharing || !shareAudio"
-                                >
-                                <div class="flex justify-between text-xs text-gray-400">
-                                    <span>0%</span>
-                                    <span>50%</span>
-                                    <span>100%</span>
-                                </div>
-                                <div class="volume-meter">
-                                    <div class="volume-level" :style="{ width: audioVolume + '%' }"></div>
-                                </div>
-                            </div>
-                        </div>
-                        
                         <!-- Audio Quality Monitor -->
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="isSharing && shareAudio">
+                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="isSharing">
                             <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
                                 <i class="fas fa-chart-line mr-2 text-blue-500"></i>
-                                Monitor Audio
+                                Monitor Audio Stabil
                             </p>
                             <div class="space-y-2">
                                 <div class="flex justify-between text-xs md:text-sm">
@@ -620,7 +439,7 @@
                                         audioQuality === 'poor' ? '25%' : '0%' }"></div>
                                 </div>
                                 <div class="text-xs text-gray-500 text-center" x-show="audioBitrate > 0">
-                                    Bitrate: <span x-text="audioBitrate"></span> kbps • 
+                                    Volume: 100% • Bitrate: <span x-text="audioBitrate"></span> kbps • 
                                     Stabilizer: <span x-text="audioStabilizerEnabled ? 'ON' : 'OFF'"></span>
                                 </div>
                             </div>
@@ -638,10 +457,9 @@
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-gray-400 text-sm md:text-base">Audio:</span>
-                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium"
-                                      :class="shareAudio ? 'bg-blue-900 text-blue-300' : 'bg-gray-700 text-gray-400'">
+                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium bg-blue-900 text-blue-300">
                                     <i class="fas fa-volume-up text-xs mr-1"></i>
-                                    <span x-text="shareAudio ? 'Aktif' : 'Nonaktif'"></span>
+                                    <span>Selalu Aktif</span>
                                 </span>
                             </div>
                         </div>
@@ -680,7 +498,7 @@
                                 </li>
                                 <li class="flex items-start">
                                     <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Atur volume menggunakan slider di aplikasi</span>
+                                    <span>Audio stabil otomatis aktif dengan volume 100%</span>
                                 </li>
                             </ul>
                         </div>
@@ -692,12 +510,12 @@
                             </p>
                             <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
                                 <li class="flex items-start">
-                                    <i class="fas fa-chrome mr-2 text-xs mt-0.5 text-blue-400"></i>
-                                    <span>Gunakan Chrome untuk hasil terbaik</span>
+                                    <i class="fas fa-volume-up mr-2 text-xs mt-0.5 text-green-400"></i>
+                                    <span><strong>Audio selalu aktif</strong> dengan stabilizer</span>
                                 </li>
                                 <li class="flex items-start">
-                                    <i class="fas fa-sliders-h mr-2 text-xs mt-0.5"></i>
-                                    <span>Atur volume sistem ke 70-80%</span>
+                                    <i class="fas fa-chrome mr-2 text-xs mt-0.5 text-blue-400"></i>
+                                    <span>Gunakan Chrome untuk hasil terbaik</span>
                                 </li>
                                 <li class="flex items-start">
                                     <i class="fas fa-headphones mr-2 text-xs mt-0.5"></i>
@@ -757,7 +575,7 @@
                             </h3>
                             <div class="text-xs md:text-sm text-gray-400">
                                 <i class="fas fa-volume-up mr-1"></i>
-                                <span x-text="shareAudio ? 'Volume: ' + Math.round(audioVolume * 100) + '%' : 'Audio: Nonaktif'"></span>
+                                <span>Audio Stabil Aktif (100%)</span>
                             </div>
                         </div>
                         <div class="video-container video-container-mobile" :class="{'fullscreen-mode': localVideoFullscreen}">
@@ -822,7 +640,7 @@
                             <div class="text-xl md:text-2xl font-semibold mb-3 md:mb-4">Belum Ada Tampilan Layar</div>
                             <p class="text-gray-500 max-w-md mx-auto mb-6 md:mb-8 text-sm md:text-base">
                                 Bergabung ke ruangan dan mulai berbagi layar untuk melihat tampilan di sini.
-                                Gunakan kontrol volume untuk mengatur tingkat suara yang stabil.
+                                Audio stabil otomatis aktif dengan volume 100% untuk kualitas terbaik.
                             </p>
                         </div>
                         
@@ -832,15 +650,15 @@
                                     <i class="fas fa-volume-up"></i>
                                 </div>
                                 <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Audio Stabil</h4>
-                                <p class="text-xs md:text-sm text-gray-400">Volume konsisten dengan compressor</p>
+                                <p class="text-xs md:text-sm text-gray-400">Volume 100% dengan stabilizer</p>
                             </div>
                             
                             <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
                                 <div class="text-2xl md:text-3xl text-green-500 mb-2 md:mb-3">
-                                    <i class="fas fa-sliders-h"></i>
+                                    <i class="fas fa-bolt"></i>
                                 </div>
-                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Kontrol Volume</h4>
-                                <p class="text-xs md:text-sm text-gray-400">Atur volume langsung di aplikasi</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Otomatis</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Audio aktif tanpa konfigurasi</p>
                             </div>
                             
                             <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">

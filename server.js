@@ -180,14 +180,6 @@ io.on('connection', (socket) => {
     console.log(`🎵 User ${socket.id} audio status: ${data.status}, volume: ${data.volume}, quality: ${data.quality}`);
   });
   
-  // Audio volume update
-  socket.on('audio-volume', (data) => {
-    socket.to(socket.roomId).emit('remote-audio-volume', {
-      userId: socket.id,
-      volume: data.volume
-    });
-  });
-  
   // Disconnect
   socket.on('disconnect', (reason) => {
     console.log(`❌ User disconnected: ${socket.id}, Reason: ${reason}`);
@@ -211,15 +203,15 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   • Stats: http://localhost:${PORT}/stats`);
   console.log(`\n📝 Fitur Audio Stabilized:`);
   console.log(`   • Volume stabil dengan compressor`);
-  console.log(`   • Kontrol volume individual`);
+  console.log(`   • Volume default 100%`);
   console.log(`   • Normalisasi audio otomatis`);
   console.log(`   • Monitoring kualitas real-time`);
   console.log(`\n🔧 Petunjuk:`);
   console.log(`   1. Gunakan Chrome untuk kualitas audio terbaik`);
-  console.log(`   2. Atur volume sistem ke 70-80%`);
+  console.log(`   2. Audio selalu aktif dengan volume 100%`);
   console.log(`   3. Gunakan headset untuk mengurangi echo`);
   console.log(`   4. Koneksi internet stabil (min 2Mbps upload)`);
-  console.log(`   5. Atur volume di kontrol aplikasi, bukan di sistem\n`);
+  console.log(`   5. Tidak perlu atur volume manual\n`);
 });
 
 // Helper function to get local IP
