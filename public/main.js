@@ -9,7 +9,7 @@ function app() {
         usersInRoom: 1,
         remoteVideos: [],
         socketId: null,
-        mobileMenuActive: 'video', // 'controls' atau 'video'
+        mobileMenuActive: 'video',
         
         // State fullscreen
         localVideoFullscreen: false,
@@ -22,7 +22,7 @@ function app() {
         localStream: null,
         peerConnections: {},
         
-        // Konfigurasi WebRTC
+        // Konfigurasi WebRTC dengan audio stabil
         configuration: {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -40,12 +40,15 @@ function app() {
                     username: 'openrelayproject',
                     credential: 'openrelayproject'
                 }
-            ]
+            ],
+            // Konfigurasi untuk audio yang stabil
+            encodedInsertableStreams: false,
+            forceEncodedAudioInsertableStreams: false,
+            forceEncodedVideoInsertableStreams: false
         },
         
         // Inisialisasi
         init() {
-            // console.log('🚀 Aplikasi Screen Share dimulai');
             this.generateRoomId();
             this.initializeSocket();
             this.setupMobileFeatures();
@@ -54,10 +57,8 @@ function app() {
         
         // Setup fitur mobile
         setupMobileFeatures() {
-            // Deteksi perangkat mobile
             this.isMobile = window.innerWidth < 1024;
             
-            // Update state saat resize
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 1024;
             });
@@ -81,13 +82,11 @@ function app() {
         
         // Setup listener untuk fullscreen
         setupFullscreenListeners() {
-            // Deteksi perubahan fullscreen
             document.addEventListener('fullscreenchange', this.handleFullscreenChange.bind(this));
             document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange.bind(this));
             document.addEventListener('mozfullscreenchange', this.handleFullscreenChange.bind(this));
             document.addEventListener('MSFullscreenChange', this.handleFullscreenChange.bind(this));
             
-            // Keluar fullscreen dengan ESC
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && this.isFullscreenMode) {
                     this.exitFullscreen();
@@ -104,13 +103,11 @@ function app() {
             
             this.isFullscreenMode = !!isFullscreen;
             
-            // Update UI state
             if (!isFullscreen) {
                 this.localVideoFullscreen = false;
                 this.remoteVideoFullscreen = false;
                 this.currentFullscreenVideo = null;
                 
-                // Sembunyikan backdrop
                 const backdrop = document.getElementById('fullscreenBackdrop');
                 const closeBtn = document.getElementById('fullscreenCloseBtn');
                 if (backdrop) backdrop.classList.remove('active');
@@ -134,12 +131,10 @@ function app() {
             if (!videoContainer) return;
             
             if (!this.localVideoFullscreen) {
-                // Masuk ke fullscreen
                 this.enterFullscreen(videoContainer, 'local');
                 this.localVideoFullscreen = true;
                 this.showNotification('Video lokal masuk mode fullscreen', 'info');
             } else {
-                // Keluar dari fullscreen
                 this.exitFullscreen();
                 this.localVideoFullscreen = false;
             }
@@ -155,13 +150,11 @@ function app() {
             if (!videoContainer) return;
             
             if (!this.remoteVideoFullscreen) {
-                // Masuk ke fullscreen
                 this.enterFullscreen(videoContainer, `remote-${userId}`);
                 this.remoteVideoFullscreen = true;
                 this.currentFullscreenVideo = userId;
                 this.showNotification(`Video pengguna ${userId.substring(0, 6)} masuk mode fullscreen`, 'info');
             } else if (this.currentFullscreenVideo === userId) {
-                // Keluar dari fullscreen
                 this.exitFullscreen();
                 this.remoteVideoFullscreen = false;
                 this.currentFullscreenVideo = null;
@@ -172,14 +165,12 @@ function app() {
         toggleRemoteFullscreen() {
             if (this.remoteVideos.length === 0) return;
             
-            // Jika sudah fullscreen, keluar
             if (this.isFullscreenMode && this.remoteVideoFullscreen) {
                 this.exitFullscreen();
                 this.remoteVideoFullscreen = false;
                 return;
             }
             
-            // Ambil container pertama sebagai representasi
             const firstVideo = this.remoteVideos[0];
             if (firstVideo) {
                 this.toggleRemoteVideoFullscreen(firstVideo.userId);
@@ -188,13 +179,11 @@ function app() {
         
         // Toggle fullscreen untuk semua video
         toggleAllFullscreen() {
-            // Jika sudah fullscreen, keluar
             if (this.isFullscreenMode) {
                 this.exitFullscreen();
                 return;
             }
             
-            // Pilih video mana yang akan difullscreen
             if (this.isSharing) {
                 this.toggleLocalVideoFullscreen();
             } else if (this.remoteVideos.length > 0) {
@@ -204,16 +193,13 @@ function app() {
         
         // Masuk ke mode fullscreen
         enterFullscreen(element, videoType) {
-            // Tampilkan backdrop dan tombol close
             const backdrop = document.getElementById('fullscreenBackdrop');
             const closeBtn = document.getElementById('fullscreenCloseBtn');
             if (backdrop) backdrop.classList.add('active');
             if (closeBtn) closeBtn.classList.add('active');
             
-            // Tambahkan class fullscreen
             element.classList.add('fullscreen-mode');
             
-            // Gunakan Fullscreen API browser
             if (element.requestFullscreen) {
                 element.requestFullscreen();
             } else if (element.webkitRequestFullscreen) {
@@ -223,7 +209,6 @@ function app() {
             } else if (element.msRequestFullscreen) {
                 element.msRequestFullscreen();
             } else {
-                // Fallback untuk browser yang tidak support Fullscreen API
                 this.isFullscreenMode = true;
                 this.currentFullscreenVideo = videoType;
             }
@@ -231,18 +216,15 @@ function app() {
         
         // Keluar dari mode fullscreen
         exitFullscreen() {
-            // Sembunyikan backdrop dan tombol close
             const backdrop = document.getElementById('fullscreenBackdrop');
             const closeBtn = document.getElementById('fullscreenCloseBtn');
             if (backdrop) backdrop.classList.remove('active');
             if (closeBtn) closeBtn.classList.remove('active');
             
-            // Hapus class fullscreen dari semua video container
             document.querySelectorAll('.video-container.fullscreen-mode').forEach(el => {
                 el.classList.remove('fullscreen-mode');
             });
             
-            // Gunakan Fullscreen API browser untuk exit
             if (document.exitFullscreen) {
                 document.exitFullscreen();
             } else if (document.webkitExitFullscreen) {
@@ -253,7 +235,6 @@ function app() {
                 document.msExitFullscreen();
             }
             
-            // Update state
             this.isFullscreenMode = false;
             this.localVideoFullscreen = false;
             this.remoteVideoFullscreen = false;
@@ -269,14 +250,12 @@ function app() {
                     id += chars.charAt(Math.floor(Math.random() * chars.length));
                 }
                 this.roomId = id;
-                // console.log('🔑 Generated Room ID:', this.roomId);
                 this.showNotification(`ID Ruangan dibuat: ${id}`, 'info');
             }
         },
         
         // Toggle Audio
         toggleAudio() {
-            // console.log('🎵 Audio setting changed to:', this.shareAudio);
             if (this.isSharing) {
                 this.showNotification('Restart screen sharing untuk menerapkan perubahan audio', 'info');
             }
@@ -284,7 +263,6 @@ function app() {
         
         // Inisialisasi Socket.io
         initializeSocket() {
-            // console.log('🔌 Menghubungkan ke server...');
             this.socket = io(window.location.origin, {
                 reconnection: true,
                 reconnectionAttempts: 10,
@@ -292,16 +270,13 @@ function app() {
                 timeout: 20000
             });
             
-            // Event handlers
             this.socket.on('connect', () => {
-                // console.log('✅ Terhubung ke server. Socket ID:', this.socket.id);
                 this.isConnected = true;
                 this.socketId = this.socket.id;
                 this.showNotification('Terhubung ke server', 'success');
             });
             
             this.socket.on('disconnect', () => {
-                // console.log('❌ Terputus dari server');
                 this.isConnected = false;
                 this.showNotification('Terputus dari server', 'error');
             });
@@ -312,58 +287,47 @@ function app() {
             });
             
             this.socket.on('room-joined', (data) => {
-                // console.log('🚪 Berhasil bergabung ke ruangan:', data.roomId);
-                // console.log('👥 Users in room:', data.users);
                 this.usersInRoom = data.userCount;
                 this.showNotification(`Bergabung ke ruangan ${data.roomId}`, 'success');
                 
-                // Switch to video view on mobile after joining
                 if (window.innerWidth < 1024) {
                     this.mobileMenuActive = 'video';
                 }
                 
-                // Buat koneksi dengan user yang sudah ada
                 data.users.forEach(userId => {
                     this.createPeerConnection(userId, true);
                 });
             });
             
             this.socket.on('user-connected', (userId) => {
-                // console.log('👤 User connected:', userId);
                 this.usersInRoom++;
                 this.showNotification('Pengguna baru bergabung', 'info');
                 this.createPeerConnection(userId, true);
             });
             
             this.socket.on('user-disconnected', (userId) => {
-                // console.log('👤 User disconnected:', userId);
                 this.usersInRoom--;
                 this.closePeerConnection(userId);
                 this.showNotification('Pengguna keluar dari ruangan', 'info');
             });
             
             this.socket.on('offer', async (data) => {
-                // console.log('📨 Received offer from:', data.from);
                 await this.handleOffer(data);
             });
             
             this.socket.on('answer', async (data) => {
-                // console.log('📨 Received answer from:', data.from);
                 await this.handleAnswer(data);
             });
             
             this.socket.on('ice-candidate', async (data) => {
-                // console.log('🧊 Received ICE candidate from:', data.from);
                 await this.handleIceCandidate(data);
             });
             
             this.socket.on('user-sharing-started', (userId) => {
-                // console.log('📹 User started sharing:', userId);
                 this.showNotification('Pengguna lain mulai berbagi layar', 'info');
             });
             
             this.socket.on('user-sharing-stopped', (userId) => {
-                // console.log('📹 User stopped sharing:', userId);
                 this.showNotification('Pengguna lain berhenti berbagi layar', 'info');
             });
         },
@@ -371,7 +335,6 @@ function app() {
         // Bergabung ke ruangan
         joinRoom() {
             if (this.roomId && !this.isInRoom) {
-                // console.log('🚪 Joining room:', this.roomId);
                 this.socket.emit('join-room', this.roomId);
                 this.isInRoom = true;
                 this.showNotification(`Bergabung ke ruangan ${this.roomId}`, 'success');
@@ -381,10 +344,8 @@ function app() {
         // Keluar dari ruangan
         leaveRoom() {
             if (this.isInRoom) {
-                // console.log('🚪 Leaving room:', this.roomId);
                 this.stopScreenShare();
                 
-                // Tutup semua koneksi peer
                 Object.keys(this.peerConnections).forEach(userId => {
                     this.closePeerConnection(userId);
                 });
@@ -397,47 +358,93 @@ function app() {
             }
         },
         
-        // Mulai berbagi layar
+        // Mulai berbagi layar dengan audio yang stabil
         async startScreenShare() {
             try {
-                // console.log('🎬 Starting screen share with audio:', this.shareAudio);
-                
-                // Konfigurasi untuk getDisplayMedia
+                // Konfigurasi video
                 const displayOptions = {
                     video: {
                         cursor: "always",
-                        displaySurface: "monitor"
-                    },
-                    audio: this.shareAudio
+                        displaySurface: "monitor",
+                        frameRate: { ideal: 30, max: 30 },
+                        width: { ideal: 1920, max: 1920 },
+                        height: { ideal: 1080, max: 1080 }
+                    }
                 };
                 
-                // Untuk Chrome, coba capture audio sistem
-                if (this.shareAudio && navigator.userAgent.indexOf('Chrome') > -1) {
+                // Konfigurasi audio khusus untuk volume stabil
+                if (this.shareAudio) {
                     displayOptions.audio = {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100,
-                        suppressLocalAudioPlayback: false
+                        // Nonaktifkan semua pemrosesan audio otomatis
+                        autoGainControl: false,
+                        noiseSuppression: false,
+                        echoCancellation: false,
+                        
+                        // Atur parameter audio tetap
+                        channelCount: 2,
+                        sampleRate: 48000,
+                        sampleSize: 16,
+                        
+                        // Volume tetap maksimal
+                        volume: 1.0,
+                        
+                        // Untuk browser berbasis Chromium
+                        googAutoGainControl: false,
+                        googNoiseSuppression: false,
+                        googHighpassFilter: false,
+                        googEchoCancellation: false,
+                        
+                        // Untuk Firefox
+                        mozAutoGainControl: false,
+                        mozNoiseSuppression: false,
+                        mozEchoCancellation: false
                     };
                 }
                 
                 // Minta izin untuk berbagi layar
                 this.localStream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
                 
+                // Optimasi audio track jika ada
+                if (this.shareAudio && this.localStream.getAudioTracks().length > 0) {
+                    const audioTrack = this.localStream.getAudioTracks()[0];
+                    
+                    // Terapkan constraint untuk volume tetap
+                    try {
+                        await audioTrack.applyConstraints({
+                            autoGainControl: false,
+                            noiseSuppression: false,
+                            echoCancellation: false,
+                            volume: 1.0
+                        });
+                        
+                        // Log untuk debugging
+                        const settings = audioTrack.getSettings();
+                        console.log('🎵 Audio settings:', {
+                            autoGainControl: settings.autoGainControl,
+                            noiseSuppression: settings.noiseSuppression,
+                            echoCancellation: settings.echoCancellation,
+                            volume: settings.volume
+                        });
+                        
+                    } catch (constraintError) {
+                        console.warn('⚠️ Tidak bisa apply constraints audio:', constraintError);
+                    }
+                }
+                
                 // Tampilkan video lokal
                 const localVideo = this.$refs.localVideo;
                 if (localVideo) {
                     localVideo.srcObject = this.localStream;
                     this.isSharing = true;
-                    // console.log('✅ Screen sharing started');
                     this.showNotification('Berbagi layar dimulai', 'success');
                     
-                    // Switch to video view on mobile when sharing starts
+                    // Atur volume tetap maksimal
+                    localVideo.volume = 1.0;
+                    
                     if (window.innerWidth < 1024) {
                         this.mobileMenuActive = 'video';
                     }
                     
-                    // Kirim event ke server
                     this.socket.emit('sharing-started');
                 }
                 
@@ -448,7 +455,6 @@ function app() {
                 const videoTrack = this.localStream.getVideoTracks()[0];
                 if (videoTrack) {
                     videoTrack.onended = () => {
-                        // console.log('🛑 Screen sharing stopped by browser');
                         this.stopScreenShare();
                     };
                 }
@@ -487,7 +493,6 @@ function app() {
             
             this.isSharing = false;
             
-            // Hentikan semua track di peer connections
             Object.values(this.peerConnections).forEach(pc => {
                 if (pc) {
                     const senders = pc.getSenders();
@@ -499,64 +504,70 @@ function app() {
                 }
             });
             
-            // Kirim event ke server
             this.socket.emit('sharing-stopped');
-            
-            // console.log('🛑 Screen sharing stopped');
             this.showNotification('Berbagi layar dihentikan', 'info');
         },
         
-        // Buat Peer Connection
+        // Buat Peer Connection dengan audio yang stabil
         createPeerConnection(userId, isInitiator = false) {
-            // Cek apakah koneksi sudah ada
             if (this.peerConnections[userId]) {
-                // console.log('⚠️ Peer connection already exists for:', userId);
                 return this.peerConnections[userId];
             }
             
-            // console.log('🔗 Creating peer connection for:', userId, 'Initiator:', isInitiator);
-            
-            // Buat RTCPeerConnection baru
             const peerConnection = new RTCPeerConnection(this.configuration);
             this.peerConnections[userId] = peerConnection;
             
-            // Tambahkan local stream jika ada
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, this.localStream);
-                    // console.log('➕ Added track:', track.kind, 'to peer:', userId);
+                    // Tambahkan constraint khusus untuk audio track
+                    if (track.kind === 'audio') {
+                        const sender = peerConnection.addTrack(track, this.localStream);
+                        
+                        // Atur parameter encoding untuk audio yang stabil
+                        if (sender && sender.track) {
+                            const params = sender.getParameters();
+                            if (!params.encodings) {
+                                params.encodings = [{}];
+                            }
+                            // Nonaktifkan audio level adjustment
+                            params.encodings[0].maxBitrate = 128000; // 128 kbps untuk audio
+                            sender.setParameters(params).catch(e => console.warn('Set parameters error:', e));
+                        }
+                    } else {
+                        peerConnection.addTrack(track, this.localStream);
+                    }
                 });
             }
             
             // ICE Candidate handler
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    // console.log('🧊 Sending ICE candidate to:', userId);
                     this.socket.emit('ice-candidate', {
                         candidate: event.candidate,
                         to: userId,
                         room: this.roomId
                     });
-                } else {
-                    // console.log('✅ All ICE candidates sent to:', userId);
                 }
             };
             
             // Track handler (menerima stream dari remote)
             peerConnection.ontrack = (event) => {
-                // console.log('📹 Received remote track from:', userId);
                 if (event.streams && event.streams[0]) {
                     this.addRemoteVideo(userId, event.streams[0]);
+                    
+                    // Atur volume video remote
+                    const videoElement = document.getElementById(`remoteVideo-${userId}`);
+                    if (videoElement) {
+                        videoElement.volume = 1.0;
+                    }
                 }
             };
             
             // ICE Connection State handler
             peerConnection.oniceconnectionstatechange = () => {
                 const state = peerConnection.iceConnectionState;
-                // console.log(`ICE state for ${userId}:`, state);
                 
                 if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-                    // console.log(`⚠️ ICE connection failed for ${userId}`);
                     setTimeout(() => {
                         if (peerConnection.iceConnectionState !== 'connected' && 
                             peerConnection.iceConnectionState !== 'checking') {
@@ -568,10 +579,11 @@ function app() {
             
             // Connection State handler
             peerConnection.onconnectionstatechange = () => {
-                // console.log(`Connection state for ${userId}:`, peerConnection.connectionState);
+                if (peerConnection.connectionState === 'connected') {
+                    console.log(`✅ Connected to ${userId}`);
+                }
             };
             
-            // Buat offer jika kita adalah initiator
             if (isInitiator && this.localStream) {
                 setTimeout(() => {
                     this.createOffer(userId, peerConnection);
@@ -581,20 +593,19 @@ function app() {
             return peerConnection;
         },
         
-        // Buat Offer
+        // Buat Offer dengan audio constraint yang stabil
         async createOffer(userId, peerConnection) {
             try {
-                // console.log('📤 Creating offer for:', userId);
-                
                 const offerOptions = {
                     offerToReceiveAudio: true,
-                    offerToReceiveVideo: true
+                    offerToReceiveVideo: true,
+                    voiceActivityDetection: false,  // Nonaktifkan VAD
+                    iceRestart: false
                 };
                 
                 const offer = await peerConnection.createOffer(offerOptions);
                 await peerConnection.setLocalDescription(offer);
                 
-                // console.log('📤 Sending offer to:', userId);
                 this.socket.emit('offer', {
                     sdp: peerConnection.localDescription,
                     to: userId,
@@ -609,19 +620,15 @@ function app() {
         // Handle Offer dari remote
         async handleOffer(data) {
             try {
-                // console.log('📥 Handling offer from:', data.from);
-                
                 const peerConnection = this.createPeerConnection(data.from);
                 
-                // Set remote description
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                // console.log('✅ Remote description set for:', data.from);
                 
-                // Buat dan kirim answer
-                const answer = await peerConnection.createAnswer();
+                const answer = await peerConnection.createAnswer({
+                    voiceActivityDetection: false
+                });
                 await peerConnection.setLocalDescription(answer);
                 
-                // console.log('📤 Sending answer to:', data.from);
                 this.socket.emit('answer', {
                     sdp: peerConnection.localDescription,
                     to: data.from,
@@ -636,12 +643,9 @@ function app() {
         // Handle Answer dari remote
         async handleAnswer(data) {
             try {
-                // console.log('📥 Handling answer from:', data.from);
-                
                 const peerConnection = this.peerConnections[data.from];
                 if (peerConnection) {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                    // console.log('✅ Answer processed for:', data.from);
                 } else {
                     console.error('❌ No peer connection found for:', data.from);
                 }
@@ -657,7 +661,6 @@ function app() {
                 const peerConnection = this.peerConnections[data.from];
                 if (peerConnection && data.candidate) {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    // console.log('✅ ICE candidate added for:', data.from);
                 }
             } catch (error) {
                 console.error('❌ Error adding ICE candidate:', error);
@@ -687,12 +690,28 @@ function app() {
                 }
             });
             
-            // Tambahkan track baru
+            // Tambahkan track baru dengan constraint audio
             this.localStream.getTracks().forEach(track => {
-                peerConnection.addTrack(track, this.localStream);
+                const sender = peerConnection.addTrack(track, this.localStream);
+                
+                // Konfigurasi audio encoding untuk volume stabil
+                if (track.kind === 'audio' && sender) {
+                    setTimeout(() => {
+                        try {
+                            const params = sender.getParameters();
+                            if (!params.encodings) {
+                                params.encodings = [{}];
+                            }
+                            params.encodings[0].maxBitrate = 128000;
+                            params.encodings[0].priority = 'high';
+                            sender.setParameters(params);
+                        } catch (e) {
+                            console.warn('Failed to set audio parameters:', e);
+                        }
+                    }, 100);
+                }
             });
             
-            // Buat offer baru
             this.createOffer(userId, peerConnection);
         },
         
@@ -704,12 +723,10 @@ function app() {
                 delete this.peerConnections[userId];
             }
             this.removeRemoteVideo(userId);
-            // console.log('🔒 Closed peer connection for:', userId);
         },
         
         // Tambahkan video remote
         addRemoteVideo(userId, stream) {
-            // Cek apakah video sudah ada
             const existingIndex = this.remoteVideos.findIndex(v => v.userId === userId);
             if (existingIndex >= 0) {
                 this.remoteVideos[existingIndex].stream = stream;
@@ -736,7 +753,6 @@ function app() {
             this.remoteVideos.forEach(videoData => {
                 const videoId = `remoteVideo-${videoData.userId}`;
                 
-                // Cek apakah element sudah ada
                 let videoElement = document.getElementById(videoId);
                 
                 if (!videoElement) {
@@ -745,28 +761,24 @@ function app() {
                     videoElement.autoplay = true;
                     videoElement.playsInline = true;
                     videoElement.className = 'w-full h-full object-cover';
+                    videoElement.volume = 1.0; // Volume tetap maksimal
                 }
                 
-                // Set stream
                 if (videoElement.srcObject !== videoData.stream) {
                     videoElement.srcObject = videoData.stream;
                 }
                 
-                // Buat wrapper untuk video
                 const videoWrapper = document.createElement('div');
                 videoWrapper.className = 'video-container h-48 md:h-64 lg:h-80';
                 
-                // Badge user
                 const userLabel = document.createElement('div');
                 userLabel.className = 'absolute bottom-3 left-3 md:bottom-4 md:left-4 bg-black bg-opacity-70 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm';
                 userLabel.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i>User ${videoData.userId.substring(0, 6)}`;
                 
-                // LIVE badge
                 const liveBadge = document.createElement('div');
                 liveBadge.className = 'live-badge absolute top-3 left-3 md:top-4 md:left-4 text-xs md:text-sm';
                 liveBadge.innerHTML = '<i class="fas fa-circle animate-pulse"></i> LIVE';
                 
-                // Tombol Fullscreen
                 const fullscreenBtn = document.createElement('button');
                 fullscreenBtn.className = 'fullscreen-btn absolute top-3 right-3 md:top-4 md:right-4';
                 fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
@@ -782,7 +794,6 @@ function app() {
         
         // Helper: Tampilkan notifikasi
         showNotification(message, type = 'info') {
-            // Buat notifikasi sederhana
             const notification = document.createElement('div');
             notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${
                 type === 'success' ? 'bg-green-900 text-green-100' :
@@ -801,7 +812,6 @@ function app() {
             
             document.body.appendChild(notification);
             
-            // Hapus notifikasi setelah 3 detik
             setTimeout(() => {
                 notification.style.transform = 'translateX(100%)';
                 setTimeout(() => {
