@@ -11,12 +11,6 @@ function app() {
         socketId: null,
         mobileMenuActive: 'video', // 'controls' atau 'video'
         
-        // State fullscreen
-        localVideoFullscreen: false,
-        remoteVideoFullscreen: false,
-        isFullscreenMode: false,
-        currentFullscreenVideo: null,
-        
         // Objek WebRTC
         socket: null,
         localStream: null,
@@ -49,7 +43,6 @@ function app() {
             this.generateRoomId();
             this.initializeSocket();
             this.setupMobileFeatures();
-            this.setupFullscreenListeners();
         },
         
         // Setup fitur mobile
@@ -77,187 +70,6 @@ function app() {
                 }
                 lastTouchEnd = now;
             }, false);
-        },
-        
-        // Setup listener untuk fullscreen
-        setupFullscreenListeners() {
-            // Deteksi perubahan fullscreen
-            document.addEventListener('fullscreenchange', this.handleFullscreenChange.bind(this));
-            document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange.bind(this));
-            document.addEventListener('mozfullscreenchange', this.handleFullscreenChange.bind(this));
-            document.addEventListener('MSFullscreenChange', this.handleFullscreenChange.bind(this));
-            
-            // Keluar fullscreen dengan ESC
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.isFullscreenMode) {
-                    this.exitFullscreen();
-                }
-            });
-        },
-        
-        // Handle perubahan state fullscreen
-        handleFullscreenChange() {
-            const isFullscreen = document.fullscreenElement || 
-                                document.webkitFullscreenElement || 
-                                document.mozFullScreenElement || 
-                                document.msFullscreenElement;
-            
-            this.isFullscreenMode = !!isFullscreen;
-            
-            // Update UI state
-            if (!isFullscreen) {
-                this.localVideoFullscreen = false;
-                this.remoteVideoFullscreen = false;
-                this.currentFullscreenVideo = null;
-                
-                // Sembunyikan backdrop
-                const backdrop = document.getElementById('fullscreenBackdrop');
-                const closeBtn = document.getElementById('fullscreenCloseBtn');
-                if (backdrop) backdrop.classList.remove('active');
-                if (closeBtn) closeBtn.classList.remove('active');
-            }
-        },
-        
-        // Toggle fullscreen untuk video tertentu
-        toggleFullscreen(videoType) {
-            if (videoType === 'local' && this.isSharing) {
-                this.toggleLocalVideoFullscreen();
-            } else if (videoType.startsWith('remote-')) {
-                const userId = videoType.replace('remote-', '');
-                this.toggleRemoteVideoFullscreen(userId);
-            }
-        },
-        
-        // Toggle fullscreen untuk video lokal
-        toggleLocalVideoFullscreen() {
-            const videoContainer = document.querySelector('.video-container video')?.closest('.video-container');
-            if (!videoContainer) return;
-            
-            if (!this.localVideoFullscreen) {
-                // Masuk ke fullscreen
-                this.enterFullscreen(videoContainer, 'local');
-                this.localVideoFullscreen = true;
-                this.showNotification('Video lokal masuk mode fullscreen', 'info');
-            } else {
-                // Keluar dari fullscreen
-                this.exitFullscreen();
-                this.localVideoFullscreen = false;
-            }
-        },
-        
-        // Toggle fullscreen untuk video remote tertentu
-        toggleRemoteVideoFullscreen(userId) {
-            const videoId = `remoteVideo-${userId}`;
-            const videoElement = document.getElementById(videoId);
-            if (!videoElement) return;
-            
-            const videoContainer = videoElement.closest('.video-container');
-            if (!videoContainer) return;
-            
-            if (!this.remoteVideoFullscreen) {
-                // Masuk ke fullscreen
-                this.enterFullscreen(videoContainer, `remote-${userId}`);
-                this.remoteVideoFullscreen = true;
-                this.currentFullscreenVideo = userId;
-                this.showNotification(`Video pengguna ${userId.substring(0, 6)} masuk mode fullscreen`, 'info');
-            } else if (this.currentFullscreenVideo === userId) {
-                // Keluar dari fullscreen
-                this.exitFullscreen();
-                this.remoteVideoFullscreen = false;
-                this.currentFullscreenVideo = null;
-            }
-        },
-        
-        // Toggle fullscreen untuk semua video remote
-        toggleRemoteFullscreen() {
-            if (this.remoteVideos.length === 0) return;
-            
-            // Jika sudah fullscreen, keluar
-            if (this.isFullscreenMode && this.remoteVideoFullscreen) {
-                this.exitFullscreen();
-                this.remoteVideoFullscreen = false;
-                return;
-            }
-            
-            // Ambil container pertama sebagai representasi
-            const firstVideo = this.remoteVideos[0];
-            if (firstVideo) {
-                this.toggleRemoteVideoFullscreen(firstVideo.userId);
-            }
-        },
-        
-        // Toggle fullscreen untuk semua video
-        toggleAllFullscreen() {
-            // Jika sudah fullscreen, keluar
-            if (this.isFullscreenMode) {
-                this.exitFullscreen();
-                return;
-            }
-            
-            // Pilih video mana yang akan difullscreen
-            if (this.isSharing) {
-                this.toggleLocalVideoFullscreen();
-            } else if (this.remoteVideos.length > 0) {
-                this.toggleRemoteFullscreen();
-            }
-        },
-        
-        // Masuk ke mode fullscreen
-        enterFullscreen(element, videoType) {
-            // Tampilkan backdrop dan tombol close
-            const backdrop = document.getElementById('fullscreenBackdrop');
-            const closeBtn = document.getElementById('fullscreenCloseBtn');
-            if (backdrop) backdrop.classList.add('active');
-            if (closeBtn) closeBtn.classList.add('active');
-            
-            // Tambahkan class fullscreen
-            element.classList.add('fullscreen-mode');
-            
-            // Gunakan Fullscreen API browser
-            if (element.requestFullscreen) {
-                element.requestFullscreen();
-            } else if (element.webkitRequestFullscreen) {
-                element.webkitRequestFullscreen();
-            } else if (element.mozRequestFullScreen) {
-                element.mozRequestFullScreen();
-            } else if (element.msRequestFullscreen) {
-                element.msRequestFullscreen();
-            } else {
-                // Fallback untuk browser yang tidak support Fullscreen API
-                this.isFullscreenMode = true;
-                this.currentFullscreenVideo = videoType;
-            }
-        },
-        
-        // Keluar dari mode fullscreen
-        exitFullscreen() {
-            // Sembunyikan backdrop dan tombol close
-            const backdrop = document.getElementById('fullscreenBackdrop');
-            const closeBtn = document.getElementById('fullscreenCloseBtn');
-            if (backdrop) backdrop.classList.remove('active');
-            if (closeBtn) closeBtn.classList.remove('active');
-            
-            // Hapus class fullscreen dari semua video container
-            document.querySelectorAll('.video-container.fullscreen-mode').forEach(el => {
-                el.classList.remove('fullscreen-mode');
-            });
-            
-            // Gunakan Fullscreen API browser untuk exit
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            } else if (document.mozCancelFullScreen) {
-                document.mozCancelFullScreen();
-            } else if (document.msExitFullscreen) {
-                document.msExitFullscreen();
-            }
-            
-            // Update state
-            this.isFullscreenMode = false;
-            this.localVideoFullscreen = false;
-            this.remoteVideoFullscreen = false;
-            this.currentFullscreenVideo = null;
         },
         
         // Generate Room ID
@@ -766,16 +578,9 @@ function app() {
                 liveBadge.className = 'live-badge absolute top-3 left-3 md:top-4 md:left-4 text-xs md:text-sm';
                 liveBadge.innerHTML = '<i class="fas fa-circle animate-pulse"></i> LIVE';
                 
-                // Tombol Fullscreen
-                const fullscreenBtn = document.createElement('button');
-                fullscreenBtn.className = 'fullscreen-btn absolute top-3 right-3 md:top-4 md:right-4';
-                fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
-                fullscreenBtn.onclick = () => this.toggleFullscreen(`remote-${videoData.userId}`);
-                
                 videoWrapper.appendChild(videoElement);
                 videoWrapper.appendChild(userLabel);
                 videoWrapper.appendChild(liveBadge);
-                videoWrapper.appendChild(fullscreenBtn);
                 container.appendChild(videoWrapper);
             });
         },
