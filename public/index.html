@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Screen Share App - Audio Stabil</title>
+    <title>Screen Share App</title>
     <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <!-- FontAwesome -->
@@ -69,7 +69,7 @@
             border: none;
             cursor: pointer;
             font-size: 14px;
-            min-height: 44px;
+            min-height: 44px; /* Minimum touch target size for mobile */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -114,7 +114,7 @@
             width: 100%;
             transition: all 0.3s;
             font-size: 14px;
-            min-height: 44px;
+            min-height: 44px; /* Minimum touch target size for mobile */
         }
         @media (min-width: 768px) {
             input[type="text"] {
@@ -128,6 +128,64 @@
         }
         input[type="text"]::placeholder {
             color: rgba(255, 255, 255, 0.5);
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+        @media (max-width: 640px) {
+            .toggle-switch {
+                width: 50px;
+                height: 25px;
+            }
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #374151;
+            border-radius: 34px;
+            transition: .4s;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            border-radius: 50%;
+            transition: .4s;
+        }
+        @media (max-width: 640px) {
+            .toggle-slider:before {
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3.5px;
+            }
+        }
+        input:checked + .toggle-slider {
+            background-color: #3b82f6;
+        }
+        input:checked + .toggle-slider:before {
+            transform: translateX(30px);
+        }
+        @media (max-width: 640px) {
+            input:checked + .toggle-slider:before {
+                transform: translateX(25px);
+            }
         }
         
         /* Mobile-specific styles */
@@ -148,7 +206,7 @@
                 display: block;
             }
             body {
-                padding-bottom: 70px;
+                padding-bottom: 70px; /* Space for bottom nav */
             }
         }
         
@@ -172,38 +230,58 @@
             }
         }
         
-        /* Audio quality indicator */
-        .audio-quality-indicator {
-            width: 100%;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-            overflow: hidden;
-            margin-top: 4px;
+        /* Responsive text sizes */
+        .text-responsive-xl {
+            font-size: 1.5rem;
         }
-        .audio-quality-bar {
-            height: 100%;
-            border-radius: 2px;
-            transition: width 0.3s;
+        @media (min-width: 640px) {
+            .text-responsive-xl {
+                font-size: 2rem;
+            }
         }
-        .quality-excellent { background: linear-gradient(90deg, #10b981, #34d399); }
-        .quality-good { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-        .quality-fair { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-        .quality-poor { background: linear-gradient(90deg, #ef4444, #f87171); }
+        @media (min-width: 768px) {
+            .text-responsive-xl {
+                font-size: 2.25rem;
+            }
+        }
+        @media (min-width: 1024px) {
+            .text-responsive-xl {
+                font-size: 2.5rem;
+            }
+        }
+        
+        /* Scrollbar styling */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.8);
+        }
         
         /* Fullscreen styles */
-        .video-container.fullscreen-mode {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            z-index: 9999 !important;
-            border-radius: 0 !important;
-            background: #000 !important;
+        :fullscreen .video-container-fullscreen,
+        :-webkit-full-screen .video-container-fullscreen,
+        :-moz-full-screen .video-container-fullscreen,
+        :-ms-fullscreen .video-container-fullscreen {
+            border-radius: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            background: #000;
         }
         
-        .video-container.fullscreen-mode video {
+        .video-container-fullscreen video {
             object-fit: contain;
         }
         
@@ -231,65 +309,75 @@
             background: rgba(59, 130, 246, 0.9);
         }
         
-        /* Audio visualization */
-        .audio-visualizer {
-            display: flex;
-            align-items: flex-end;
-            gap: 2px;
-            height: 30px;
-            padding: 0 10px;
+        .fullscreen-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9998;
+            display: none;
         }
         
-        .audio-bar {
-            width: 4px;
-            background: #3b82f6;
-            border-radius: 2px;
-            transition: height 0.1s;
+        .fullscreen-backdrop.active {
+            display: block;
         }
         
-        /* Notification styles */
-        .notification {
+        .fullscreen-close-btn {
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 16px;
-            border-radius: 10px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
-            max-width: 350px;
-            animation: slideIn 0.3s ease;
-            backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10000;
+            display: none;
         }
         
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        .fullscreen-close-btn.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        .notification.success {
-            background: rgba(16, 185, 129, 0.9);
-            border-left: 4px solid #059669;
+        .fullscreen-close-btn:hover {
+            background: rgba(220, 38, 38, 0.9);
         }
         
-        .notification.error {
-            background: rgba(239, 68, 68, 0.9);
-            border-left: 4px solid #dc2626;
+        .video-container.fullscreen-mode {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            background: #000 !important;
         }
         
-        .notification.warning {
-            background: rgba(245, 158, 11, 0.9);
-            border-left: 4px solid #d97706;
+        .video-container.fullscreen-mode .fullscreen-btn {
+            display: none;
         }
         
-        .notification.info {
-            background: rgba(59, 130, 246, 0.9);
-            border-left: 4px solid #1d4ed8;
+        .video-container.fullscreen-mode .fullscreen-close-btn {
+            display: flex !important;
         }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 min-h-screen text-gray-100">
-    <!-- Notification container -->
-    <div id="notificationContainer"></div>
+    <!-- Fullscreen backdrop -->
+    <div class="fullscreen-backdrop" id="fullscreenBackdrop"></div>
+    
+    <!-- Fullscreen close button -->
+    <button class="fullscreen-close-btn" id="fullscreenCloseBtn" @click="exitFullscreen()">
+        <i class="fas fa-times"></i>
+    </button>
     
     <div class="container mx-auto px-4 py-4 md:py-8">
         <!-- Header -->
@@ -300,7 +388,7 @@
                 </div>
                 <div>
                     <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold mb-1 md:mb-2">Screen Share App</h1>
-                    <p class="text-gray-400 text-sm sm:text-base md:text-lg">Berbagi layar dengan audio stabil</p>
+                    <p class="text-gray-400 text-sm sm:text-base md:text-lg">Berbagi layar dan audio dengan mudah & profesional</p>
                 </div>
             </div>
             <div class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-gray-800 text-sm md:text-base">
@@ -310,7 +398,7 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
-            <!-- Panel Kontrol -->
+            <!-- Panel Kontrol - Mobile: collapsible, Desktop: always visible -->
             <div class="lg:col-span-1 space-y-4 md:space-y-8" :class="{'hidden': mobileMenuActive !== 'controls' && window.innerWidth < 1024}" x-show="window.innerWidth >= 1024 || mobileMenuActive === 'controls'">
                 <!-- Panel Ruangan -->
                 <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl">
@@ -401,49 +489,22 @@
                             </button>
                         </div>
                         
-                        <!-- Di bagian Audio Quality Monitor -->
-<div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="isSharing">
-    <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
-        <i class="fas fa-chart-line mr-2 text-blue-500"></i>
-        Monitor Audio Stabil
-    </p>
-    <div class="space-y-2">
-        <div class="flex justify-between text-xs md:text-sm">
-            <span class="text-gray-400">Status:</span>
-            <span class="font-medium" x-text="audioMeterValue > 0.1 ? 'Aktif (100% Fixed)' : 'Diam'"></span>
-        </div>
-        <div class="flex justify-between text-xs md:text-sm">
-            <span class="text-gray-400">Kualitas:</span>
-            <span class="font-medium">
-                <i class="fas fa-signal" :class="{
-                    'text-green-500': audioQuality === 'excellent',
-                    'text-blue-500': audioQuality === 'good',
-                    'text-yellow-500': audioQuality === 'fair',
-                    'text-red-500': audioQuality === 'poor'
-                }"></i>
-                <span x-text="audioQuality === 'excellent' ? 'Sangat Baik' : 
-                    audioQuality === 'good' ? 'Baik' : 
-                    audioQuality === 'fair' ? 'Cukup' : 
-                    audioQuality === 'poor' ? 'Rendah' : 'Mengecek...'"></span>
-            </span>
-        </div>
-        <div class="audio-quality-indicator">
-            <div class="audio-quality-bar" :class="{
-                'quality-excellent': audioQuality === 'excellent',
-                'quality-good': audioQuality === 'good',
-                'quality-fair': audioQuality === 'fair',
-                'quality-poor': audioQuality === 'poor'
-            }" :style="{ width: audioQuality === 'excellent' ? '100%' : 
-                audioQuality === 'good' ? '75%' : 
-                audioQuality === 'fair' ? '50%' : 
-                audioQuality === 'poor' ? '25%' : '0%' }"></div>
-        </div>
-        <div class="text-xs text-gray-500 text-center" x-show="audioBitrate > 0">
-            Volume: <span class="font-bold">100% (Fixed)</span> • Bitrate: <span x-text="audioBitrate"></span> kbps • 
-            Stabilizer: <span class="font-bold text-green-400" x-text="audioStabilizerEnabled ? 'ADVANCED ON' : 'OFF'"></span>
-        </div>
-    </div>
-</div>
+                        <!-- Toggle Audio -->
+                        <div class="flex items-center justify-between p-3 md:p-4 bg-gray-800 rounded-xl">
+                            <div class="flex items-center">
+                                <div class="p-2 bg-blue-900 rounded-lg mr-3">
+                                    <i class="fas fa-volume-up text-base md:text-lg"></i>
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-sm md:text-base">Audio Sistem</p>
+                                    <p class="text-xs md:text-sm text-gray-400">Bagikan suara dari komputer</p>
+                                </div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" x-model="shareAudio" @change="toggleAudio()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                         
                         <!-- Status Berbagi -->
                         <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
@@ -457,9 +518,10 @@
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-gray-400 text-sm md:text-base">Audio:</span>
-                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium bg-blue-900 text-blue-300">
+                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium"
+                                      :class="shareAudio ? 'bg-blue-900 text-blue-300' : 'bg-gray-700 text-gray-400'">
                                     <i class="fas fa-volume-up text-xs mr-1"></i>
-                                    <span>Selalu Aktif</span>
+                                    <span x-text="shareAudio ? 'Aktif' : 'Nonaktif'"></span>
                                 </span>
                             </div>
                         </div>
@@ -498,32 +560,32 @@
                                 </li>
                                 <li class="flex items-start">
                                     <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Audio stabil otomatis aktif dengan volume 100%</span>
+                                    <span>Klik tombol <i class="fas fa-expand ml-1 mr-1"></i> untuk mode fullscreen</span>
                                 </li>
                             </ul>
                         </div>
                         
                         <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
                             <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
-                                <i class="fas fa-volume-up mr-2 text-blue-500"></i>
-                                Tips Audio Stabil:
+                                <i class="fas fa-exclamation-triangle mr-2 text-orange-500"></i>
+                                Catatan Penting:
                             </p>
                             <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
                                 <li class="flex items-start">
-                                    <i class="fas fa-volume-up mr-2 text-xs mt-0.5 text-green-400"></i>
-                                    <span><strong>Audio selalu aktif</strong> dengan stabilizer</span>
+                                    <i class="fas fa-desktop mr-2 text-xs mt-0.5"></i>
+                                    <span>Gunakan Chrome/Edge untuk hasil terbaik</span>
                                 </li>
                                 <li class="flex items-start">
-                                    <i class="fas fa-chrome mr-2 text-xs mt-0.5 text-blue-400"></i>
-                                    <span>Gunakan Chrome untuk hasil terbaik</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-headphones mr-2 text-xs mt-0.5"></i>
-                                    <span>Gunakan headset untuk kualitas terbaik</span>
+                                    <i class="fas fa-volume-off mr-2 text-xs mt-0.5"></i>
+                                    <span>Audio sistem hanya tersedia di Chrome</span>
                                 </li>
                                 <li class="flex items-start">
                                     <i class="fas fa-wifi mr-2 text-xs mt-0.5"></i>
                                     <span>Pastikan koneksi internet stabil</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fas fa-expand mr-2 text-xs mt-0.5"></i>
+                                    <span>Tekan ESC atau tombol keluar untuk keluar fullscreen</span>
                                 </li>
                             </ul>
                         </div>
@@ -565,17 +627,10 @@
                             <h3 class="text-base md:text-lg font-semibold flex items-center mb-1 md:mb-0">
                                 <i class="fas fa-user mr-2 text-blue-400"></i>
                                 Layar Anda
-                                <div class="ml-3 audio-visualizer" x-show="shareAudio">
-                                    <div class="audio-bar" :style="{ height: audioLevels[0] + 'px' }"></div>
-                                    <div class="audio-bar" :style="{ height: audioLevels[1] + 'px' }"></div>
-                                    <div class="audio-bar" :style="{ height: audioLevels[2] + 'px' }"></div>
-                                    <div class="audio-bar" :style="{ height: audioLevels[3] + 'px' }"></div>
-                                    <div class="audio-bar" :style="{ height: audioLevels[4] + 'px' }"></div>
-                                </div>
                             </h3>
                             <div class="text-xs md:text-sm text-gray-400">
-                                <i class="fas fa-volume-up mr-1"></i>
-                                <span>Audio Stabil Aktif (100%)</span>
+                                <i class="fas fa-microphone mr-1"></i>
+                                <span x-text="shareAudio ? 'Audio: Aktif' : 'Audio: Nonaktif'"></span>
                             </div>
                         </div>
                         <div class="video-container video-container-mobile" :class="{'fullscreen-mode': localVideoFullscreen}">
@@ -640,33 +695,33 @@
                             <div class="text-xl md:text-2xl font-semibold mb-3 md:mb-4">Belum Ada Tampilan Layar</div>
                             <p class="text-gray-500 max-w-md mx-auto mb-6 md:mb-8 text-sm md:text-base">
                                 Bergabung ke ruangan dan mulai berbagi layar untuk melihat tampilan di sini.
-                                Audio stabil otomatis aktif dengan volume 100% untuk kualitas terbaik.
+                                Anda dapat berbagi layar dengan beberapa pengguna sekaligus.
                             </p>
                         </div>
                         
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 w-full max-w-2xl">
                             <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
                                 <div class="text-2xl md:text-3xl text-blue-500 mb-2 md:mb-3">
-                                    <i class="fas fa-volume-up"></i>
+                                    <i class="fas fa-users"></i>
                                 </div>
-                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Audio Stabil</h4>
-                                <p class="text-xs md:text-sm text-gray-400">Volume 100% dengan stabilizer</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Multi-User</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Dukung banyak pengguna dalam satu ruangan</p>
                             </div>
                             
                             <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
                                 <div class="text-2xl md:text-3xl text-green-500 mb-2 md:mb-3">
-                                    <i class="fas fa-bolt"></i>
+                                    <i class="fas fa-volume-up"></i>
                                 </div>
-                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Otomatis</h4>
-                                <p class="text-xs md:text-sm text-gray-400">Audio aktif tanpa konfigurasi</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Audio Sistem</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Bagikan audio dari komputer Anda</p>
                             </div>
                             
                             <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
                                 <div class="text-2xl md:text-3xl text-purple-500 mb-2 md:mb-3">
-                                    <i class="fas fa-chart-line"></i>
+                                    <i class="fas fa-bolt"></i>
                                 </div>
-                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Monitoring</h4>
-                                <p class="text-xs md:text-sm text-gray-400">Pantau kualitas audio real-time</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Real-time</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Streaming langsung tanpa delay</p>
                             </div>
                         </div>
                     </div>
@@ -722,7 +777,7 @@
             <div class="flex flex-col md:flex-row justify-between items-center">
                 <div class="mb-3 md:mb-0 text-center md:text-left">
                     <p class="text-xs md:text-sm text-gray-600 mt-1">
-                        © 2024 Screen Share App - Audio Stabilizer v2.1.0
+                        © 2024 Screen Share App. Untuk keperluan presentasi dan kolaborasi.
                     </p>
                 </div>
                 <div class="flex items-center space-x-3 md:space-x-4">
@@ -732,7 +787,7 @@
                     </div>
                     <div class="text-xs md:text-sm text-gray-500">
                         <i class="fas fa-code-branch mr-1"></i>
-                        v2.1.0 Audio Stabilized
+                        v1.1.0
                     </div>
                 </div>
             </div>
