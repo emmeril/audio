@@ -177,7 +177,7 @@ io.on('connection', (socket) => {
   
   // Audio status update
   socket.on('audio-status', (data) => {
-    console.log(`🎵 User ${socket.id} audio status: ${data.status}, volume: ${data.volume}, quality: ${data.quality}`);
+    console.log(`🎵 User ${socket.id} audio status: ${data.status}, volume: ${data.volume}, quality: ${data.quality}, smoothed: ${data.smoothed || 'N/A'}`);
   });
   
   // Disconnect
@@ -201,17 +201,19 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   • Local: http://localhost:${PORT}`);
   console.log(`   • Network: http://${getLocalIP()}:${PORT}`);
   console.log(`   • Stats: http://localhost:${PORT}/stats`);
-  console.log(`\n📝 Fitur Audio Stabilized:`);
-  console.log(`   • Volume stabil dengan compressor`);
-  console.log(`   • Volume default 100%`);
-  console.log(`   • Normalisasi audio otomatis`);
+  console.log(`\n📝 Fitur Audio Stabilized v2.2:`);
+  console.log(`   • Volume stabil dengan compressor + limiter`);
+  console.log(`   • Volume selalu 100% dengan clamping`);
+  console.log(`   • Audio smoothing dengan weighted average`);
   console.log(`   • Monitoring kualitas real-time`);
+  console.log(`   • Auto unmute dan force enable audio`);
   console.log(`\n🔧 Petunjuk:`);
   console.log(`   1. Gunakan Chrome untuk kualitas audio terbaik`);
-  console.log(`   2. Audio selalu aktif dengan volume 100%`);
-  console.log(`   3. Gunakan headset untuk mengurangi echo`);
-  console.log(`   4. Koneksi internet stabil (min 2Mbps upload)`);
-  console.log(`   5. Tidak perlu atur volume manual\n`);
+  console.log(`   2. Audio selalu aktif dengan volume 100% fixed`);
+  console.log(`   3. Volume tidak akan naik-turun otomatis`);
+  console.log(`   4. Gunakan headset untuk mengurangi echo`);
+  console.log(`   5. Koneksi internet stabil (min 2Mbps upload)`);
+  console.log(`   6. Tidak perlu atur volume manual\n`);
 });
 
 // Helper function to get local IP

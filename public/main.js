@@ -24,30 +24,36 @@ function app() {
         audioMeterValue: 0,
         audioStabilizerEnabled: true,
         
-        // Audio processing (diperbarui)
+        // Audio processing - NEW: Tambah limiter dan smoothing
         audioContext: null,
         audioAnalyser: null,
         audioSource: null,
-        preGainNode: null,
         audioGainNode: null,
         audioCompressor: null,
-        limiter: null,
+        limiter: null, // NEW: Tambah limiter
+        makeupGain: null, // NEW: Tambah makeup gain
+        automationGainNode: null, // NEW: Tambah automation
         audioDestination: null,
         processedStream: null,
         
-        // Monitoring intervals (diperbarui)
+        // Volume stabilization - NEW: Properti untuk stabilisasi
+        volumeSmoothing: 0.7,
+        smoothVolumeHistory: [],
+        targetVolume: 1.0, // Selalu 100%
+        isVolumeClampingActive: true,
+        
+        // Monitoring intervals
         audioMonitoringIntervals: {},
         audioQualityInterval: null,
         audioVisualizerInterval: null,
-        volumeMonitoringInterval: null,
-        remoteAudioMonitors: {},
+        volumeClampInterval: null, // NEW: Interval untuk clamping
         
         // Objek WebRTC
         socket: null,
         localStream: null,
         peerConnections: {},
         
-        // Konfigurasi WebRTC dengan optimasi audio stabil (diperbarui)
+        // Konfigurasi WebRTC dengan optimasi audio stabil
         configuration: {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -120,47 +126,69 @@ function app() {
                 } else {
                     // Simulasi level audio untuk visualisasi
                     this.audioLevels = this.audioLevels.map(() => 
-                        Math.floor(Math.random() * 10) + 5
+                        Math.floor(Math.random() * 15) + 5
                     );
                 }
             }, 100);
         },
         
-        // Update audio levels dari analyser (diperbarui)
-        updateAudioLevels() {
-            if (!this.audioAnalyser || !this.isSharing) {
-                // Fallback ke random visualization jika tidak ada audio
-                this.audioLevels = this.audioLevels.map(() => Math.floor(Math.random() * 10) + 5);
-                return;
+        // NEW: Fungsi untuk smoothing volume
+        applyVolumeSmoothing(currentVolume) {
+            // Simpan dalam history (gunakan 15 sample untuk smoothing lebih baik)
+            this.smoothVolumeHistory.push(currentVolume);
+            
+            // Batasi history
+            if (this.smoothVolumeHistory.length > 15) {
+                this.smoothVolumeHistory.shift();
             }
-
+            
+            // Hitung rata-rata tertimbang (weighted average)
+            let weightedSum = 0;
+            let weightTotal = 0;
+            
+            this.smoothVolumeHistory.forEach((value, index) => {
+                const weight = Math.pow(0.9, index); // Memberi bobot lebih pada data terbaru
+                weightedSum += value * weight;
+                weightTotal += weight;
+            });
+            
+            const weightedAverage = weightedSum / weightTotal;
+            
+            // Apply smoothing dengan lerp
+            return (this.volumeSmoothing * weightedAverage) + ((1 - this.volumeSmoothing) * currentVolume);
+        },
+        
+        // Update audio levels dari analyser dengan smoothing
+        updateAudioLevels() {
+            if (!this.audioAnalyser || !this.audioContext) return;
+            
             try {
                 const dataArray = new Uint8Array(this.audioAnalyser.frequencyBinCount);
                 this.audioAnalyser.getByteFrequencyData(dataArray);
                 
-                // Ambil 5 frequency bands untuk visualizer
-                const bands = 5;
-                const bandSize = Math.floor(dataArray.length / bands);
-                const newLevels = [];
-                
-                for (let i = 0; i < bands; i++) {
-                    let sum = 0;
-                    for (let j = 0; j < bandSize; j++) {
-                        sum += dataArray[i * bandSize + j];
-                    }
-                    const avg = sum / bandSize;
-                    // Convert ke height pixel (5-25px) dengan smoothing
-                    const level = Math.min(25, Math.max(5, avg / 3));
-                    newLevels.push(level);
+                // Ambil rata-rata dari lebih banyak frequency bins untuk hasil lebih stabil
+                let sum = 0;
+                const samples = Math.min(20, dataArray.length); // Lebih banyak samples
+                for (let i = 0; i < samples; i++) {
+                    sum += dataArray[i];
                 }
+                let average = sum / samples;
                 
-                // Smoothing transisi
-                for (let i = 0; i < this.audioLevels.length; i++) {
-                    this.audioLevels[i] = (this.audioLevels[i] * 0.7) + (newLevels[i] * 0.3);
-                }
+                // NEW: Apply smoothing
+                average = this.applyVolumeSmoothing(average);
+                
+                // Convert ke level visual (0-20px)
+                const level = Math.min(20, Math.max(5, average / 2));
+                
+                // Update levels dengan smoothing
+                this.audioLevels.shift();
+                this.audioLevels.push(level);
+                
+                // Update meter value (0-1)
+                this.audioMeterValue = Math.min(1, average / 128);
                 
             } catch (error) {
-                console.warn('⚠️ Audio visualizer error:', error);
+                console.warn('⚠️ Error updating audio levels:', error);
             }
         },
         
@@ -191,6 +219,43 @@ function app() {
                 this.localVideoFullscreen = false;
                 this.remoteVideoFullscreen = false;
                 this.currentFullscreenVideo = null;
+            }
+        },
+        
+        // NEW: Volume clamping untuk menjaga volume tetap 100%
+        clampVolume() {
+            if (!this.audioGainNode || !this.audioContext) return;
+            
+            try {
+                // Selalu jaga gain di 1.0 (100%) dengan smoothing
+                this.audioGainNode.gain.setTargetAtTime(
+                    this.targetVolume, 
+                    this.audioContext.currentTime, 
+                    0.1 // Time constant untuk smoothing
+                );
+            } catch (error) {
+                console.warn('⚠️ Error clamping volume:', error);
+            }
+        },
+        
+        // Start volume clamping interval
+        startVolumeClamping() {
+            if (this.volumeClampInterval) {
+                clearInterval(this.volumeClampInterval);
+            }
+            
+            this.volumeClampInterval = setInterval(() => {
+                if (this.isSharing && this.isVolumeClampingActive) {
+                    this.clampVolume();
+                }
+            }, 500); // Clamp setiap 500ms
+        },
+        
+        // Stop volume clamping
+        stopVolumeClamping() {
+            if (this.volumeClampInterval) {
+                clearInterval(this.volumeClampInterval);
+                this.volumeClampInterval = null;
             }
         },
         
@@ -324,164 +389,109 @@ function app() {
             }
         },
         
-        // Setup Audio Processing dengan Web Audio API (DIREVISI TOTAL)
+        // NEW: Setup Audio Processing dengan Web Audio API yang lebih baik
         setupAudioProcessing(audioTrack) {
             try {
-                console.log('🎛️ Setting up advanced audio processing...');
+                // Hentikan processing sebelumnya
                 this.cleanupAudioProcessing();
-
+                
+                // Reset smoothing history
+                this.smoothVolumeHistory = [];
+                
+                // Buat AudioContext baru
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 this.audioContext = new AudioContext({ 
                     sampleRate: 48000,
-                    latencyHint: 'balanced'
+                    latencyHint: 'interactive'
                 });
-
-                // Buat source dari audio track
-                const sourceStream = new MediaStream([audioTrack]);
-                this.audioSource = this.audioContext.createMediaStreamSource(sourceStream);
-
-                // 1. PRE-GAIN: Normalize input level
-                this.preGainNode = this.audioContext.createGain();
-                this.preGainNode.gain.value = 1.5; // Boost input sedikit
-
-                // 2. COMPRESSOR: Main compression dengan setting yang lebih agresif
-                this.audioCompressor = this.audioContext.createDynamicsCompressor();
                 
-                // Setting compressor untuk stabilisasi maksimal:
-                this.audioCompressor.threshold.value = -35;    // Lower threshold = lebih banyak kompresi
-                this.audioCompressor.knee.value = 15;          // Smooth knee
-                this.audioCompressor.ratio.value = 8;          // Higher ratio = lebih agresif
-                this.audioCompressor.attack.value = 0.003;     // Sangat cepat
-                this.audioCompressor.release.value = 0.1;      // Cepat release
-                this.audioCompressor.reduction = -20;          // Target reduction
-
-                // 3. LIMITER: Mencegah clipping
+                // Buat source dari audio track
+                this.audioSource = this.audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+                
+                // Buat compressor untuk stabilisasi volume
+                this.audioCompressor = this.audioContext.createDynamicsCompressor();
+                this.audioCompressor.threshold.value = -20; // dB (dinaikkan untuk lebih smooth)
+                this.audioCompressor.knee.value = 20; // dB (lebih lebar untuk transisi smooth)
+                this.audioCompressor.ratio.value = 6; // 6:1 ratio (lebih agresif)
+                this.audioCompressor.attack.value = 0.005; // seconds (lebih lambat)
+                this.audioCompressor.release.value = 0.5; // seconds (lebih lambat untuk smoothing)
+                
+                // NEW: Tambahkan limiter untuk mencegah clipping dan fluktuasi
                 this.limiter = this.audioContext.createDynamicsCompressor();
-                this.limiter.threshold.value = -6;             // Prevent peaking
-                this.limiter.knee.value = 0;
-                this.limiter.ratio.value = 20;                 // Very high ratio = hard limiter
-                this.limiter.attack.value = 0.001;             // Super fast attack
-                this.limiter.release.value = 0.05;             // Fast release
-
-                // 4. POST-GAIN: Setel volume output ke 100% stabil
+                this.limiter.threshold.value = -3; // dB - lebih ketat
+                this.limiter.knee.value = 0; // Hard knee
+                this.limiter.ratio.value = 20; // Ratio tinggi untuk limiting
+                this.limiter.attack.value = 0.001; // Sangat cepat
+                this.limiter.release.value = 0.1; // Cepat
+                
+                // NEW: Tambahkan makeup gain untuk kompensasi penurunan volume
+                this.makeupGain = this.audioContext.createGain();
+                this.makeupGain.gain.value = 1.3; // Kompensasi penurunan volume
+                
+                // NEW: Tambahkan automation gain node
+                this.automationGainNode = this.audioContext.createGain();
+                this.automationGainNode.gain.value = 1.0;
+                
+                // Buat gain node untuk kontrol volume (default 100%)
                 this.audioGainNode = this.audioContext.createGain();
-                this.audioGainNode.gain.value = 1.0;          // Fixed 100%
-                this.audioGainNode.gain.setValueAtTime(1.0, this.audioContext.currentTime);
-
-                // 5. ANALYZER: Untuk monitoring
+                this.audioGainNode.gain.value = 1.0; // 100% fixed
+                
+                // Buat analyser untuk visualisasi
                 this.audioAnalyser = this.audioContext.createAnalyser();
-                this.audioAnalyser.fftSize = 2048;
-                this.audioAnalyser.smoothingTimeConstant = 0.7;
-                this.audioAnalyser.minDecibels = -80;
-                this.audioAnalyser.maxDecibels = -10;
-
-                // 6. DESTINATION
+                this.audioAnalyser.fftSize = 512; // Lebih besar untuk smoothing lebih baik
+                this.audioAnalyser.smoothingTimeConstant = 0.9; // Smoothing lebih tinggi
+                
+                // Buat destination stream
                 this.audioDestination = this.audioContext.createMediaStreamDestination();
-
-                // Hubungkan semua node secara berurutan
-                this.audioSource.connect(this.preGainNode);
-                this.preGainNode.connect(this.audioCompressor);
+                
+                // NEW: Hubungkan chain yang lebih kompleks
+                // source -> compressor -> limiter -> makeup -> automation -> gain -> analyser -> destination
+                this.audioSource.connect(this.audioCompressor);
                 this.audioCompressor.connect(this.limiter);
-                this.limiter.connect(this.audioGainNode);
+                this.limiter.connect(this.makeupGain);
+                this.makeupGain.connect(this.automationGainNode);
+                this.automationGainNode.connect(this.audioGainNode);
                 this.audioGainNode.connect(this.audioAnalyser);
                 this.audioAnalyser.connect(this.audioDestination);
-
+                
                 // Dapatkan processed track
                 this.processedStream = this.audioDestination.stream;
-                const processedTrack = this.processedStream.getAudioTracks()[0];
-
-                console.log('✅ Advanced audio processing setup complete');
-                console.log('🔧 Compression settings:', {
+                
+                console.log('🔧 Audio processing setup complete (Volume: 100%)');
+                console.log('⚙️ Advanced audio processing chain activated');
+                console.log('🎚️ Compressor settings:', {
                     threshold: this.audioCompressor.threshold.value,
+                    knee: this.audioCompressor.knee.value,
                     ratio: this.audioCompressor.ratio.value,
                     attack: this.audioCompressor.attack.value,
                     release: this.audioCompressor.release.value
                 });
-
-                // Mulai monitoring volume secara real-time
-                this.startVolumeMonitoring();
-
-                return processedTrack;
-
+                
+                console.log('🔒 Limiter settings:', {
+                    threshold: this.limiter.threshold.value,
+                    ratio: this.limiter.ratio.value
+                });
+                
+                // NEW: Start volume clamping
+                this.startVolumeClamping();
+                
+                return this.processedStream.getAudioTracks()[0];
+                
             } catch (error) {
-                console.error('❌ Audio processing error:', error);
+                console.warn('⚠️ Audio processing not available:', error);
                 this.audioStabilizerEnabled = false;
                 return audioTrack;
             }
         },
-
-        // Fungsi baru: Start volume monitoring
-        startVolumeMonitoring() {
-            if (this.volumeMonitoringInterval) {
-                clearInterval(this.volumeMonitoringInterval);
-            }
-
-            this.volumeMonitoringInterval = setInterval(() => {
-                if (!this.audioAnalyser || !this.isSharing) return;
-
-                try {
-                    const dataArray = new Uint8Array(this.audioAnalyser.frequencyBinCount);
-                    this.audioAnalyser.getByteFrequencyData(dataArray);
-                    
-                    // Hitung RMS (Root Mean Square) untuk volume
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        sum += dataArray[i] * dataArray[i];
-                    }
-                    let rms = Math.sqrt(sum / dataArray.length);
-                    
-                    // Normalize ke range 0-1
-                    this.audioMeterValue = Math.min(1, rms / 128);
-                    
-                    // Auto-adjust pre-gain jika volume terlalu rendah/tinggi
-                    if (this.preGainNode) {
-                        const targetLevel = 0.7; // Target level yang diinginkan
-                        const currentLevel = this.audioMeterValue;
-                        
-                        if (currentLevel < 0.3 && currentLevel > 0.05) {
-                            // Volume terlalu rendah, naikkan gain
-                            const newGain = Math.min(2.5, this.preGainNode.gain.value * 1.1);
-                            this.preGainNode.gain.linearRampToValueAtTime(newGain, this.audioContext.currentTime + 0.1);
-                        } else if (currentLevel > 0.9) {
-                            // Volume terlalu tinggi, turunkan gain
-                            const newGain = Math.max(0.5, this.preGainNode.gain.value * 0.9);
-                            this.preGainNode.gain.linearRampToValueAtTime(newGain, this.audioContext.currentTime + 0.1);
-                        }
-                    }
-                    
-                    // Update visualizer
-                    this.updateAudioLevels();
-                    
-                } catch (error) {
-                    console.warn('⚠️ Volume monitoring error:', error);
-                }
-            }, 100); // Monitor setiap 100ms
-        },
-
-        // Fungsi baru: Get optimized audio constraints
-        getOptimizedAudioConstraints() {
-            return {
-                autoGainControl: { exact: false },           // MATIKAN auto gain control
-                echoCancellation: { exact: false },          // MATIKAN echo cancellation
-                noiseSuppression: { exact: false },          // MATIKAN noise suppression
-                channelCount: { ideal: 2, max: 2 },          // Stereo
-                sampleRate: { ideal: 48000, max: 48000 },    // High quality
-                sampleSize: { ideal: 16, max: 16 },          // 16-bit
-                suppressLocalAudioPlayback: false,
-                volume: { ideal: 1.0, max: 1.0 },           // Max volume
-                latency: { ideal: 0.01, max: 0.1 },         // Low latency
-                // Tambahkan constraint untuk mencegah auto-adjustment
-                googAutoGainControl: false,
-                googEchoCancellation: false,
-                googNoiseSuppression: false,
-                googHighpassFilter: false,
-                googTypingNoiseDetection: false,
-                googExperimentalAutoGainControl: false
-            };
-        },
-
+        
         // Cleanup audio processing
         cleanupAudioProcessing() {
+            // Stop volume clamping
+            this.stopVolumeClamping();
+            
+            // Clear smoothing history
+            this.smoothVolumeHistory = [];
+            
             if (this.audioContext) {
                 try {
                     this.audioContext.close();
@@ -489,18 +499,14 @@ function app() {
                 this.audioContext = null;
             }
             this.audioSource = null;
-            this.preGainNode = null;
             this.audioCompressor = null;
             this.limiter = null;
+            this.makeupGain = null;
+            this.automationGainNode = null;
             this.audioGainNode = null;
             this.audioAnalyser = null;
             this.audioDestination = null;
             this.processedStream = null;
-            
-            if (this.volumeMonitoringInterval) {
-                clearInterval(this.volumeMonitoringInterval);
-                this.volumeMonitoringInterval = null;
-            }
         },
         
         // Start audio quality monitoring
@@ -526,14 +532,17 @@ function app() {
             const networkQuality = this.getNetworkQuality();
             const volumeLevel = this.audioMeterValue;
             
+            // NEW: Gunakan smoothing untuk volume level juga
+            const smoothedVolumeLevel = this.applyVolumeSmoothing(volumeLevel);
+            
             if (networkQuality) {
-                if (networkQuality.downlink > 5 && volumeLevel > 0.3) {
+                if (networkQuality.downlink > 5 && smoothedVolumeLevel > 0.3) {
                     this.audioQuality = 'excellent';
                     this.audioBitrate = 128;
-                } else if (networkQuality.downlink > 2 && volumeLevel > 0.2) {
+                } else if (networkQuality.downlink > 2 && smoothedVolumeLevel > 0.2) {
                     this.audioQuality = 'good';
                     this.audioBitrate = 96;
-                } else if (networkQuality.downlink > 1 && volumeLevel > 0.1) {
+                } else if (networkQuality.downlink > 1 && smoothedVolumeLevel > 0.15) {
                     this.audioQuality = 'fair';
                     this.audioBitrate = 64;
                 } else {
@@ -541,11 +550,11 @@ function app() {
                     this.audioBitrate = 32;
                 }
             } else {
-                // Fallback
-                if (volumeLevel > 0.3) {
+                // Fallback dengan volume yang sudah dismooth
+                if (smoothedVolumeLevel > 0.3) {
                     this.audioQuality = 'good';
                     this.audioBitrate = 96;
-                } else if (volumeLevel > 0.1) {
+                } else if (smoothedVolumeLevel > 0.15) {
                     this.audioQuality = 'fair';
                     this.audioBitrate = 64;
                 } else {
@@ -559,7 +568,8 @@ function app() {
                 this.socket.emit('audio-status', {
                     status: this.audioQuality,
                     volume: 100, // Selalu 100%
-                    quality: this.audioBitrate
+                    quality: this.audioBitrate,
+                    smoothed: smoothedVolumeLevel.toFixed(2)
                 });
             }
         },
@@ -686,10 +696,6 @@ function app() {
                     this.cleanupAudioMonitoring(userId);
                 });
                 
-                Object.keys(this.remoteAudioMonitors).forEach(userId => {
-                    this.cleanupRemoteAudioMonitor(userId);
-                });
-                
                 // Tutup semua koneksi peer
                 Object.keys(this.peerConnections).forEach(userId => {
                     this.closePeerConnection(userId);
@@ -705,118 +711,118 @@ function app() {
             }
         },
         
-        // Mulai berbagi layar dengan audio stabil (DIREVISI TOTAL)
+        // Mulai berbagi layar dengan audio stabil
         async startScreenShare() {
             try {
-                console.log('🎬 Starting screen share with stabilized audio...');
+                console.log('🎬 Starting screen share with stabilized audio (always 100%)');
                 
+                // NEW: Update media constraints untuk audio lebih stabil
                 const displayOptions = {
                     video: {
                         cursor: "always",
                         displaySurface: "monitor",
                         frameRate: { ideal: 30, max: 60 },
                         width: { ideal: 1920, max: 1920 },
-                        height: { ideal: 1080, max: 1080 },
-                        resizeMode: "crop-and-scale"
+                        height: { ideal: 1080, max: 1080 }
                     },
-                    audio: this.getOptimizedAudioConstraints() // Gunakan constraints baru
+                    audio: {
+                        autoGainControl: { exact: false }, // NEW: Matikan AGC sepenuhnya
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        channelCount: { ideal: 1, max: 2 }, // NEW: Mono lebih stabil
+                        sampleRate: { ideal: 48000 },
+                        sampleSize: { ideal: 16 },
+                        suppressLocalAudioPlayback: false,
+                        volume: { 
+                            ideal: 1.0,
+                            min: 0.95, // NEW: Minimum 95% untuk mencegah drop
+                            max: 1.0
+                        }
+                    }
                 };
                 
-                // Minta izin berbagi layar
+                // Minta izin untuk berbagi layar
                 this.localStream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
                 
-                // CEK apakah audio tersedia
+                // Optimasi audio track
                 if (this.localStream.getAudioTracks().length > 0) {
                     const originalAudioTrack = this.localStream.getAudioTracks()[0];
                     
-                    console.log('🔊 Original audio track detected:', {
+                    console.log('🔊 Original audio track:', {
                         enabled: originalAudioTrack.enabled,
                         muted: originalAudioTrack.muted,
                         readyState: originalAudioTrack.readyState,
-                        settings: originalAudioTrack.getSettings()
+                        volume: originalAudioTrack.getSettings().volume || 'unknown'
                     });
                     
-                    // Force enable track
+                    // NEW: Force enable dan unmute track
                     originalAudioTrack.enabled = true;
                     
-                    // Setup audio processing yang lebih stabil
+                    // Setup audio processing dengan chain yang lebih baik
                     const processedAudioTrack = this.setupAudioProcessing(originalAudioTrack);
                     
+                    // Ganti track asli dengan yang sudah diproses
                     if (processedAudioTrack && processedAudioTrack !== originalAudioTrack) {
                         this.localStream.removeTrack(originalAudioTrack);
                         this.localStream.addTrack(processedAudioTrack);
-                        console.log('✅ Advanced audio stabilization applied');
+                        console.log('✅ Advanced audio processing applied (Volume: 100% fixed)');
                         this.audioStabilizerEnabled = true;
                     } else {
-                        console.warn('⚠️ Using original audio track (processing failed)');
+                        console.log('⚠️ Using original audio track (no processing)');
                         this.audioStabilizerEnabled = false;
-                        
-                        // Fallback: apply simple gain
-                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                        const source = audioContext.createMediaStreamSource(new MediaStream([originalAudioTrack]));
-                        const gainNode = audioContext.createGain();
-                        gainNode.gain.value = 1.0; // Fixed gain
-                        const destination = audioContext.createMediaStreamDestination();
-                        source.connect(gainNode);
-                        gainNode.connect(destination);
-                        
-                        const processedTrack = destination.stream.getAudioTracks()[0];
-                        this.localStream.removeTrack(originalAudioTrack);
-                        this.localStream.addTrack(processedTrack);
                     }
                     
                     // Setup audio event handlers
                     const audioTrack = this.localStream.getAudioTracks()[0];
                     audioTrack.onmute = () => {
-                        console.warn('🔇 Audio track muted by system');
-                        this.showNotification('Audio terdeteksi mute oleh sistem', 'warning');
-                        // Coba unmute
-                        setTimeout(() => {
-                            if (audioTrack.muted) {
-                                audioTrack.enabled = true;
-                                audioTrack.muted = false;
-                            }
-                        }, 100);
+                        console.warn('🔇 Audio track muted - forcing unmute');
+                        audioTrack.enabled = true; // Force unmute
+                        this.showNotification('Audio dipaksa aktif (100%)', 'warning');
+                    };
+                    
+                    audioTrack.onunmute = () => {
+                        console.log('🔊 Audio track unmuted');
                     };
                     
                     audioTrack.addEventListener('ended', () => {
-                        console.warn('🔇 Audio track ended unexpectedly');
-                        this.showNotification('Audio terputus, coba mulai ulang berbagi', 'warning');
+                        console.warn('🔇 Audio track ended');
+                        if (this.isSharing) {
+                            this.showNotification('Audio berbagi terputus', 'warning');
+                        }
                     });
                     
-                    // Start monitoring
+                    // Start audio monitoring
                     this.startAudioQualityMonitoring();
-                    
                 } else {
-                    console.warn('⚠️ No audio track available from screen share');
-                    this.showNotification(
-                        'Audio sistem tidak terdeteksi. Pastikan Anda mencentang "Share audio" saat memilih layar.',
-                        'error'
-                    );
-                    this.audioStabilizerEnabled = false;
+                    console.warn('⚠️ No audio track available');
+                    this.showNotification('Audio sistem tidak tersedia', 'warning');
                 }
                 
-                // Tampilkan video
+                // Tampilkan video lokal
                 const localVideo = this.$refs.localVideo;
                 if (localVideo) {
                     localVideo.srcObject = this.localStream;
                     this.isSharing = true;
                     
                     console.log('✅ Screen sharing started with stabilized audio');
-                    this.showNotification('Berbagi layar dimulai. Audio stabil aktif (100%)', 'success');
+                    console.log('🎵 Audio tracks:', this.localStream.getAudioTracks().length);
+                    console.log('📹 Video tracks:', this.localStream.getVideoTracks().length);
+                    
+                    this.showNotification('Berbagi layar dimulai dengan audio stabil (100% fixed)', 'success');
                     
                     // Switch to video view on mobile
                     if (window.innerWidth < 1024) {
                         this.mobileMenuActive = 'video';
                     }
                     
+                    // Kirim event ke server
                     this.socket.emit('sharing-started');
                 }
                 
                 // Kirim stream ke semua peer
                 this.sendStreamToAllPeers();
                 
-                // Handle browser stop sharing
+                // Handle ketika user stop sharing via browser
                 const videoTrack = this.localStream.getVideoTracks()[0];
                 if (videoTrack) {
                     videoTrack.onended = () => {
@@ -827,33 +833,24 @@ function app() {
                 
             } catch (error) {
                 console.error('❌ Error starting screen share:', error);
-                this.handleScreenShareError(error);
+                let errorMessage = 'Gagal memulai berbagi layar. ';
+                
+                if (error.name === 'NotAllowedError') {
+                    errorMessage = 'Izin berbagi layar ditolak. Silakan coba lagi dan berikan izin.';
+                } else if (error.name === 'NotFoundError') {
+                    errorMessage = 'Tidak ada layar atau jendela yang tersedia untuk dibagikan.';
+                } else if (error.name === 'NotReadableError') {
+                    errorMessage = 'Tidak dapat membaca layar. Mungkin aplikasi lain sedang menggunakan kamera/layar.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = 'Konfigurasi tidak didukung. Coba pilih layar yang berbeda.';
+                } else if (error.name === 'TypeError') {
+                    errorMessage = 'Browser tidak mendukung fitur berbagi layar. Gunakan Chrome atau Edge.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                this.showNotification(errorMessage, 'error');
             }
-        },
-
-        // Fungsi baru: Handle screen share error
-        handleScreenShareError(error) {
-            let errorMessage = 'Gagal memulai berbagi layar. ';
-            
-            if (error.name === 'NotAllowedError') {
-                errorMessage = 'Izin berbagi layar ditolak. Silakan berikan izin akses ke mikrofon dan layar.';
-            } else if (error.name === 'NotFoundError') {
-                errorMessage = 'Tidak ada layar yang tersedia. Pastikan Anda memiliki jendela atau tab yang terbuka.';
-            } else if (error.name === 'NotReadableError') {
-                errorMessage = 'Tidak dapat mengakses layar. Tutup aplikasi lain yang mungkin menggunakan kamera/layar.';
-            } else if (error.name === 'OverconstrainedError') {
-                errorMessage = 'Konfigurasi tidak didukung. Coba browser Chrome versi terbaru.';
-            } else if (error.name === 'TypeError') {
-                errorMessage = 'Browser tidak mendukung fitur berbagi audio. Gunakan Chrome atau Edge terbaru.';
-            } else if (error.name === 'AbortError') {
-                errorMessage = 'Proses berbagi dibatalkan. Coba lagi.';
-            } else if (error.message.includes('audio')) {
-                errorMessage = 'Gagal mengakses audio sistem. Pastikan Anda memberikan izin akses mikrofon.';
-            } else {
-                errorMessage += error.message;
-            }
-            
-            this.showNotification(errorMessage, 'error');
         },
         
         // Berhenti berbagi layar
@@ -902,7 +899,7 @@ function app() {
             this.showNotification('Berbagi layar dihentikan', 'info');
         },
         
-        // Buat Peer Connection dengan optimasi audio stabil (DIREVISI)
+        // Buat Peer Connection dengan optimasi audio stabil
         createPeerConnection(userId, isInitiator = false) {
             if (this.peerConnections[userId]) {
                 console.log('⚠️ Peer connection already exists for:', userId);
@@ -953,24 +950,13 @@ function app() {
                 }
             };
             
-            // Track handler (menerima stream dari remote) - DIREVISI
+            // Track handler (menerima stream dari remote)
             peerConnection.ontrack = (event) => {
                 console.log('📹 Received remote track from:', userId);
+                console.log('🎵 Track kind:', event.track.kind);
                 
                 if (event.streams && event.streams[0]) {
-                    const remoteStream = event.streams[0];
-                    
-                    // Set volume to 100% for all remote audio
-                    const audioTracks = remoteStream.getAudioTracks();
-                    audioTracks.forEach(track => {
-                        // Track sudah memiliki volume 100% dari server
-                        console.log('🔊 Remote audio track received, volume: 100%');
-                    });
-                    
-                    this.addRemoteVideo(userId, remoteStream);
-                    
-                    // Setup remote audio monitoring
-                    this.monitorRemoteAudio(userId, remoteStream);
+                    this.addRemoteVideo(userId, event.streams[0]);
                 }
             };
             
@@ -1010,59 +996,8 @@ function app() {
             
             return peerConnection;
         },
-
-        // Fungsi baru: Monitor remote audio
-        monitorRemoteAudio(userId, stream) {
-            if (!stream.getAudioTracks()[0]) return;
-            
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioContext.createMediaStreamSource(stream);
-            const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            
-            source.connect(analyser);
-            
-            const monitorInterval = setInterval(() => {
-                if (!this.peerConnections[userId]) {
-                    clearInterval(monitorInterval);
-                    audioContext.close();
-                    return;
-                }
-                
-                try {
-                    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                    analyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        sum += dataArray[i];
-                    }
-                    const average = sum / dataArray.length;
-                    
-                    // Log jika volume terlalu rendah
-                    if (average < 10) {
-                        console.warn(`🔇 Low volume from remote user ${userId}: ${average.toFixed(1)}`);
-                    }
-                    
-                } catch (error) {
-                    // Ignore monitoring errors
-                }
-            }, 5000);
-            
-            this.remoteAudioMonitors[userId] = { audioContext, analyser, interval: monitorInterval };
-        },
-
-        // Fungsi baru: Cleanup remote audio monitor
-        cleanupRemoteAudioMonitor(userId) {
-            const monitor = this.remoteAudioMonitors[userId];
-            if (monitor) {
-                if (monitor.interval) clearInterval(monitor.interval);
-                if (monitor.audioContext) monitor.audioContext.close();
-                delete this.remoteAudioMonitors[userId];
-            }
-        },
         
-        // Buat Offer dengan optimasi audio (DIREVISI)
+        // Buat Offer dengan optimasi audio
         async createOffer(userId, peerConnection) {
             try {
                 console.log('📤 Creating offer for:', userId);
@@ -1084,14 +1019,6 @@ function app() {
                 
                 // Atur bandwidth audio
                 sdp = this.setAudioBandwidth(sdp, 128);
-                
-                // Tambahkan preferensi untuk stereo audio
-                if (!sdp.includes('stereo=1')) {
-                    const fmtpMatch = sdp.match(/a=fmtp:\d+ .+/);
-                    if (fmtpMatch) {
-                        sdp = sdp.replace(fmtpMatch[0], fmtpMatch[0] + ';stereo=1;sprop-stereo=1');
-                    }
-                }
                 
                 // Update offer dengan SDP yang dioptimasi
                 offer.sdp = sdp;
@@ -1309,10 +1236,9 @@ function app() {
             this.createOffer(userId, peerConnection);
         },
         
-        // Tutup Peer Connection (DIREVISI)
+        // Tutup Peer Connection
         closePeerConnection(userId) {
             this.cleanupAudioMonitoring(userId);
-            this.cleanupRemoteAudioMonitor(userId);
             
             const peerConnection = this.peerConnections[userId];
             if (peerConnection) {
@@ -1394,34 +1320,6 @@ function app() {
                 videoWrapper.appendChild(fullscreenBtn);
                 container.appendChild(videoWrapper);
             });
-        },
-
-        // Fungsi baru: Test audio
-        testAudio() {
-            if (!this.audioContext) {
-                this.showNotification('Audio processor belum aktif', 'warning');
-                return;
-            }
-            
-            // Play test tone
-            const oscillator = this.audioContext.createOscillator();
-            const gainNode = this.audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(this.audioContext.destination);
-            
-            gainNode.gain.value = 0.1; // 10% volume untuk test
-            oscillator.frequency.value = 440; // A4 note
-            oscillator.type = 'sine';
-            
-            oscillator.start();
-            
-            this.showNotification('Test audio sedang diputar...', 'info');
-            
-            setTimeout(() => {
-                oscillator.stop();
-                this.showNotification('Test audio selesai. Volume stabil: 100%', 'success');
-            }, 1000);
         },
         
         // Helper: Tampilkan notifikasi
