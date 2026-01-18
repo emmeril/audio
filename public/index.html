@@ -2,7 +2,7 @@
 <html lang="id" x-data="app()" x-cloak>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Screen Share App</title>
     <!-- Tailwind CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -28,7 +28,8 @@
         }
         video {
             width: 100%;
-            height: auto;
+            height: 100%;
+            object-fit: contain;
             display: block;
         }
         .status-indicator {
@@ -48,6 +49,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            white-space: nowrap;
         }
         .pulsing {
             animation: pulse 2s infinite;
@@ -60,12 +62,23 @@
         .btn-primary {
             background: linear-gradient(135deg, #3b82f6, #1d4ed8);
             color: white;
-            padding: 12px 24px;
+            padding: 12px 16px;
             border-radius: 10px;
             font-weight: 600;
             transition: all 0.3s;
             border: none;
             cursor: pointer;
+            font-size: 14px;
+            min-height: 44px; /* Minimum touch target size for mobile */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (min-width: 768px) {
+            .btn-primary {
+                padding: 12px 24px;
+                font-size: 16px;
+            }
         }
         .btn-primary:hover:not(:disabled) {
             background: linear-gradient(135deg, #2563eb, #1e40af);
@@ -100,6 +113,13 @@
             border-radius: 10px;
             width: 100%;
             transition: all 0.3s;
+            font-size: 14px;
+            min-height: 44px; /* Minimum touch target size for mobile */
+        }
+        @media (min-width: 768px) {
+            input[type="text"] {
+                font-size: 16px;
+            }
         }
         input[type="text"]:focus {
             outline: none;
@@ -114,6 +134,12 @@
             display: inline-block;
             width: 60px;
             height: 30px;
+        }
+        @media (max-width: 640px) {
+            .toggle-switch {
+                width: 50px;
+                height: 25px;
+            }
         }
         .toggle-switch input {
             opacity: 0;
@@ -142,63 +168,154 @@
             border-radius: 50%;
             transition: .4s;
         }
+        @media (max-width: 640px) {
+            .toggle-slider:before {
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3.5px;
+            }
+        }
         input:checked + .toggle-slider {
             background-color: #3b82f6;
         }
         input:checked + .toggle-slider:before {
             transform: translateX(30px);
         }
+        @media (max-width: 640px) {
+            input:checked + .toggle-slider:before {
+                transform: translateX(25px);
+            }
+        }
+        
+        /* Mobile-specific styles */
+        .mobile-bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 50;
+            padding: 8px;
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .mobile-bottom-nav {
+                display: block;
+            }
+            body {
+                padding-bottom: 70px; /* Space for bottom nav */
+            }
+        }
+        
+        /* Responsive video containers */
+        .video-container-mobile {
+            height: 200px;
+        }
+        @media (min-width: 640px) {
+            .video-container-mobile {
+                height: 300px;
+            }
+        }
+        @media (min-width: 768px) {
+            .video-container-mobile {
+                height: 350px;
+            }
+        }
+        @media (min-width: 1024px) {
+            .video-container-mobile {
+                height: 400px;
+            }
+        }
+        
+        /* Responsive text sizes */
+        .text-responsive-xl {
+            font-size: 1.5rem;
+        }
+        @media (min-width: 640px) {
+            .text-responsive-xl {
+                font-size: 2rem;
+            }
+        }
+        @media (min-width: 768px) {
+            .text-responsive-xl {
+                font-size: 2.25rem;
+            }
+        }
+        @media (min-width: 1024px) {
+            .text-responsive-xl {
+                font-size: 2.5rem;
+            }
+        }
+        
+        /* Scrollbar styling */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.8);
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 min-h-screen text-gray-100">
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-4 md:py-8">
         <!-- Header -->
-        <header class="text-center mb-12">
-            <div class="flex items-center justify-center mb-4">
-                <div class="p-3 bg-blue-600 rounded-xl mr-4">
-                    <i class="fas fa-desktop text-3xl"></i>
+        <header class="text-center mb-8 md:mb-12">
+            <div class="flex flex-col sm:flex-row items-center justify-center mb-4">
+                <div class="p-2 sm:p-3 bg-blue-600 rounded-xl mb-3 sm:mb-0 sm:mr-4">
+                    <i class="fas fa-desktop text-2xl sm:text-3xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-4xl font-bold mb-2">Screen Share App</h1>
-                    <p class="text-gray-400 text-lg">Berbagi layar dan audio dengan mudah & profesional</p>
+                    <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold mb-1 md:mb-2">Screen Share App</h1>
+                    <p class="text-gray-400 text-sm sm:text-base md:text-lg">Berbagi layar dan audio dengan mudah & profesional</p>
                 </div>
             </div>
-            <div class="inline-flex items-center px-4 py-2 rounded-full bg-gray-800">
+            <div class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-gray-800 text-sm md:text-base">
                 <span class="status-indicator" :class="isConnected ? 'bg-green-500 pulsing' : 'bg-red-500'"></span>
                 <span x-text="isConnected ? 'Terhubung ke Server' : 'Menyambung...'"></span>
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Panel Kontrol -->
-            <div class="lg:col-span-1 space-y-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
+            <!-- Panel Kontrol - Mobile: collapsible, Desktop: always visible -->
+            <div class="lg:col-span-1 space-y-4 md:space-y-8" :class="{'hidden': mobileMenuActive !== 'controls' && window.innerWidth < 1024}" x-show="window.innerWidth >= 1024 || mobileMenuActive === 'controls'">
                 <!-- Panel Ruangan -->
-                <div class="glass-card rounded-2xl p-6 shadow-2xl">
-                    <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl">
+                    <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
                         <i class="fas fa-door-open mr-3 text-blue-400"></i>
                         Kontrol Ruangan
                     </h2>
                     
-                    <div class="space-y-6">
+                    <div class="space-y-4 md:space-y-6">
                         <div>
-                            <label class="block text-sm font-medium mb-3 text-gray-300">ID Ruangan</label>
+                            <label class="block text-sm font-medium mb-2 md:mb-3 text-gray-300">ID Ruangan</label>
                             <div class="flex space-x-2">
                                 <input 
                                     x-model="roomId" 
                                     type="text" 
-                                    class="flex-grow"
+                                    class="flex-grow text-sm md:text-base"
                                     :readonly="isInRoom"
                                     placeholder="Masukkan ID ruangan">
                                 <button 
                                     @click="generateRoomId()"
                                     :disabled="isInRoom"
-                                    class="px-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50">
+                                    class="px-3 md:px-4 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50 min-h-[44px]">
                                     <i class="fas fa-redo-alt"></i>
                                 </button>
                             </div>
                         </div>
                         
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-2 gap-2 md:gap-3">
                             <button 
                                 @click="joinRoom()"
                                 :disabled="!roomId || isInRoom"
@@ -219,12 +336,12 @@
                         
                         <div class="pt-4 border-t border-gray-700">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-gray-400">Pengguna aktif:</span>
-                                <span class="font-bold text-xl" x-text="usersInRoom"></span>
+                                <span class="text-gray-400 text-sm md:text-base">Pengguna aktif:</span>
+                                <span class="font-bold text-lg md:text-xl" x-text="usersInRoom"></span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-gray-400">Status:</span>
-                                <span class="px-3 py-1 rounded-full text-sm font-medium"
+                                <span class="text-gray-400 text-sm md:text-base">Status:</span>
+                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium"
                                       :class="isInRoom ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-400'">
                                     <i class="fas fa-circle text-xs mr-1"></i>
                                     <span x-text="isInRoom ? 'Dalam Ruangan' : 'Belum Bergabung'"></span>
@@ -235,41 +352,41 @@
                 </div>
 
                 <!-- Kontrol Berbagi -->
-                <div class="glass-card rounded-2xl p-6 shadow-2xl">
-                    <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl">
+                    <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
                         <i class="fas fa-share-square mr-3 text-green-400"></i>
                         Kontrol Berbagi
                     </h2>
                     
-                    <div class="space-y-6">
-                        <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-4 md:space-y-6">
+                        <div class="grid grid-cols-2 gap-3 md:gap-4">
                             <button 
                                 @click="startScreenShare()"
                                 :disabled="!isInRoom || isSharing"
-                                class="btn-primary h-20 flex flex-col items-center justify-center"
+                                class="btn-primary h-16 md:h-20 flex flex-col items-center justify-center py-2"
                                 :class="isSharing ? 'btn-success' : ''">
-                                <i class="fas fa-play-circle text-2xl mb-2"></i>
-                                <span x-text="isSharing ? 'Sedang Berbagi' : 'Mulai Bagikan'"></span>
+                                <i class="fas fa-play-circle text-xl md:text-2xl mb-1 md:mb-2"></i>
+                                <span class="text-xs md:text-sm" x-text="isSharing ? 'Sedang Berbagi' : 'Mulai Bagikan'"></span>
                             </button>
                             
                             <button 
                                 @click="stopScreenShare()"
                                 :disabled="!isSharing"
-                                class="btn-danger h-20 flex flex-col items-center justify-center">
-                                <i class="fas fa-stop-circle text-2xl mb-2"></i>
-                                Berhenti
+                                class="btn-danger h-16 md:h-20 flex flex-col items-center justify-center py-2">
+                                <i class="fas fa-stop-circle text-xl md:text-2xl mb-1 md:mb-2"></i>
+                                <span class="text-xs md:text-sm">Berhenti</span>
                             </button>
                         </div>
                         
                         <!-- Toggle Audio -->
-                        <div class="flex items-center justify-between p-4 bg-gray-800 rounded-xl">
+                        <div class="flex items-center justify-between p-3 md:p-4 bg-gray-800 rounded-xl">
                             <div class="flex items-center">
                                 <div class="p-2 bg-blue-900 rounded-lg mr-3">
-                                    <i class="fas fa-volume-up text-lg"></i>
+                                    <i class="fas fa-volume-up text-base md:text-lg"></i>
                                 </div>
                                 <div>
-                                    <p class="font-semibold">Audio Sistem</p>
-                                    <p class="text-sm text-gray-400">Bagikan suara dari komputer</p>
+                                    <p class="font-semibold text-sm md:text-base">Audio Sistem</p>
+                                    <p class="text-xs md:text-sm text-gray-400">Bagikan suara dari komputer</p>
                                 </div>
                             </div>
                             <label class="toggle-switch">
@@ -279,18 +396,18 @@
                         </div>
                         
                         <!-- Status Berbagi -->
-                        <div class="p-4 bg-gray-800 rounded-xl">
+                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
                             <div class="flex items-center justify-between mb-2">
-                                <span class="text-gray-400">Status Berbagi:</span>
-                                <span class="px-3 py-1 rounded-full text-sm font-medium"
+                                <span class="text-gray-400 text-sm md:text-base">Status Berbagi:</span>
+                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium"
                                       :class="isSharing ? 'bg-red-900 text-red-300' : 'bg-gray-700 text-gray-400'">
                                     <i class="fas fa-circle text-xs mr-1"></i>
                                     <span x-text="isSharing ? 'LIVE' : 'Tidak Berbagi'"></span>
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-gray-400">Audio:</span>
-                                <span class="px-3 py-1 rounded-full text-sm font-medium"
+                                <span class="text-gray-400 text-sm md:text-base">Audio:</span>
+                                <span class="px-2 py-1 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-medium"
                                       :class="shareAudio ? 'bg-blue-900 text-blue-300' : 'bg-gray-700 text-gray-400'">
                                     <i class="fas fa-volume-up text-xs mr-1"></i>
                                     <span x-text="shareAudio ? 'Aktif' : 'Nonaktif'"></span>
@@ -301,44 +418,44 @@
                 </div>
 
                 <!-- Informasi Teknis -->
-                <div class="glass-card rounded-2xl p-6 shadow-2xl">
-                    <h2 class="text-2xl font-bold mb-6 flex items-center">
+                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl">
+                    <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
                         <i class="fas fa-info-circle mr-3 text-yellow-400"></i>
                         Informasi & Tips
                     </h2>
                     
-                    <div class="space-y-4">
-                        <div class="p-4 bg-gray-800 rounded-xl">
-                            <p class="font-semibold mb-2 flex items-center">
+                    <div class="space-y-3 md:space-y-4">
+                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
+                            <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
                                 <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>
                                 Cara Menggunakan:
                             </p>
-                            <ul class="text-sm text-gray-400 space-y-2 ml-1">
+                            <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
                                 <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-1 mr-2 text-xs"></i>
+                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
                                     <span>Buat atau masukkan ID ruangan</span>
                                 </li>
                                 <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-1 mr-2 text-xs"></i>
+                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
                                     <span>Klik "Gabung Ruangan" di semua perangkat</span>
                                 </li>
                                 <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-1 mr-2 text-xs"></i>
+                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
                                     <span>Di perangkat yang ingin berbagi, klik "Mulai Bagikan"</span>
                                 </li>
                                 <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-1 mr-2 text-xs"></i>
+                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
                                     <span>Pilih layar atau jendela yang ingin dibagikan</span>
                                 </li>
                             </ul>
                         </div>
                         
-                        <div class="p-4 bg-gray-800 rounded-xl">
-                            <p class="font-semibold mb-2 flex items-center">
+                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
+                            <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
                                 <i class="fas fa-exclamation-triangle mr-2 text-orange-500"></i>
                                 Catatan Penting:
                             </p>
-                            <ul class="text-sm text-gray-400 space-y-2 ml-1">
+                            <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
                                 <li class="flex items-start">
                                     <i class="fas fa-desktop mr-2 text-xs mt-0.5"></i>
                                     <span>Gunakan Chrome/Edge untuk hasil terbaik</span>
@@ -358,19 +475,19 @@
             </div>
 
             <!-- Panel Video -->
-            <div class="lg:col-span-2">
-                <div class="glass-card rounded-2xl p-6 shadow-2xl h-full">
-                    <div class="flex items-center justify-between mb-8">
-                        <h2 class="text-2xl font-bold flex items-center">
+            <div class="lg:col-span-2" :class="{'hidden': mobileMenuActive !== 'video' && window.innerWidth < 1024}" x-show="window.innerWidth >= 1024 || mobileMenuActive === 'video'">
+                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl h-full">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-8">
+                        <h2 class="text-xl md:text-2xl font-bold flex items-center mb-2 md:mb-0">
                             <i class="fas fa-video mr-3 text-purple-400"></i>
                             Tampilan Layar
                         </h2>
-                        <div class="flex items-center space-x-4">
-                            <div class="px-4 py-2 bg-gray-800 rounded-lg">
-                                <span class="text-gray-400 mr-2">ID Ruangan:</span>
+                        <div class="flex items-center space-x-2 md:space-x-4">
+                            <div class="px-3 py-1.5 md:px-4 md:py-2 bg-gray-800 rounded-lg text-sm md:text-base">
+                                <span class="text-gray-400 mr-1 md:mr-2">ID:</span>
                                 <span class="font-mono font-bold" x-text="roomId || '---'"></span>
                             </div>
-                            <div class="live-badge" x-show="isSharing || remoteVideos.length > 0">
+                            <div class="live-badge text-xs md:text-sm" x-show="isSharing || remoteVideos.length > 0">
                                 <i class="fas fa-circle animate-pulse"></i>
                                 LIVE
                             </div>
@@ -378,90 +495,91 @@
                     </div>
                     
                     <!-- Video Lokal -->
-                    <div class="mb-8" x-show="isSharing">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold flex items-center">
+                    <div class="mb-6 md:mb-8" x-show="isSharing">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between mb-3 md:mb-4">
+                            <h3 class="text-base md:text-lg font-semibold flex items-center mb-1 md:mb-0">
                                 <i class="fas fa-user mr-2 text-blue-400"></i>
                                 Layar Anda
                             </h3>
-                            <div class="text-sm text-gray-400">
+                            <div class="text-xs md:text-sm text-gray-400">
                                 <i class="fas fa-microphone mr-1"></i>
                                 <span x-text="shareAudio ? 'Audio: Aktif' : 'Audio: Nonaktif'"></span>
                             </div>
                         </div>
-                        <div class="video-container">
+                        <div class="video-container video-container-mobile">
                             <video 
                                 x-ref="localVideo" 
                                 autoplay 
                                 muted 
                                 playsinline
-                                class="w-full h-auto"></video>
-                            <div class="absolute top-4 left-4">
-                                <div class="live-badge">
-                                    <i class="fas fa-broadcast-tower"></i>
-                                    ANDA SEDANG BERBAGI
+                                class="w-full h-full"></video>
+                            <div class="absolute top-3 md:top-4 left-3 md:left-4">
+                                <div class="live-badge text-xs md:text-sm">
+                                    <i class="fas fa-broadcast-tower mr-1"></i>
+                                    <span class="hidden sm:inline">ANDA SEDANG BERBAGI</span>
+                                    <span class="sm:hidden">BERBAGI</span>
                                 </div>
                             </div>
-                            <div class="absolute bottom-4 left-4 bg-black bg-opacity-70 px-3 py-2 rounded-lg">
-                                <i class="fas fa-user mr-2"></i>
-                                <span>Anda (${socketId ? socketId.substring(0, 8) : ''})</span>
+                            <div class="absolute bottom-3 md:bottom-4 left-3 md:left-4 bg-black bg-opacity-70 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm">
+                                <i class="fas fa-user mr-1 md:mr-2"></i>
+                                <span>Anda</span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Video Remote -->
                     <div x-show="remoteVideos.length > 0">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold flex items-center">
+                        <div class="flex items-center justify-between mb-3 md:mb-4">
+                            <h3 class="text-base md:text-lg font-semibold flex items-center">
                                 <i class="fas fa-users mr-2 text-green-400"></i>
                                 Pengguna Lain
-                                <span class="ml-2 px-2 py-1 bg-blue-900 rounded-full text-sm" 
+                                <span class="ml-2 px-2 py-0.5 md:px-2 md:py-1 bg-blue-900 rounded-full text-xs md:text-sm" 
                                       x-text="remoteVideos.length"></span>
                             </h3>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="remoteVideosContainer">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" id="remoteVideosContainer">
                             <!-- Remote videos akan dimasukkan di sini -->
                         </div>
                     </div>
                     
                     <!-- State Kosong -->
                     <div x-show="!isSharing && remoteVideos.length === 0" 
-                         class="flex flex-col items-center justify-center py-16 text-center">
-                        <div class="mb-8">
-                            <div class="text-8xl text-gray-700 mb-4">
+                         class="flex flex-col items-center justify-center py-8 md:py-16 text-center">
+                        <div class="mb-6 md:mb-8">
+                            <div class="text-6xl md:text-8xl text-gray-700 mb-3 md:mb-4">
                                 <i class="fas fa-desktop"></i>
                             </div>
-                            <div class="text-2xl font-semibold mb-4">Belum Ada Tampilan Layar</div>
-                            <p class="text-gray-500 max-w-md mx-auto mb-8">
+                            <div class="text-xl md:text-2xl font-semibold mb-3 md:mb-4">Belum Ada Tampilan Layar</div>
+                            <p class="text-gray-500 max-w-md mx-auto mb-6 md:mb-8 text-sm md:text-base">
                                 Bergabung ke ruangan dan mulai berbagi layar untuk melihat tampilan di sini.
                                 Anda dapat berbagi layar dengan beberapa pengguna sekaligus.
                             </p>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-2xl">
-                            <div class="p-4 bg-gray-800 rounded-xl text-center">
-                                <div class="text-3xl text-blue-500 mb-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 w-full max-w-2xl">
+                            <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
+                                <div class="text-2xl md:text-3xl text-blue-500 mb-2 md:mb-3">
                                     <i class="fas fa-users"></i>
                                 </div>
-                                <h4 class="font-semibold mb-2">Multi-User</h4>
-                                <p class="text-sm text-gray-400">Dukung banyak pengguna dalam satu ruangan</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Multi-User</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Dukung banyak pengguna dalam satu ruangan</p>
                             </div>
                             
-                            <div class="p-4 bg-gray-800 rounded-xl text-center">
-                                <div class="text-3xl text-green-500 mb-3">
+                            <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
+                                <div class="text-2xl md:text-3xl text-green-500 mb-2 md:mb-3">
                                     <i class="fas fa-volume-up"></i>
                                 </div>
-                                <h4 class="font-semibold mb-2">Audio Sistem</h4>
-                                <p class="text-sm text-gray-400">Bagikan audio dari komputer Anda</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Audio Sistem</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Bagikan audio dari komputer Anda</p>
                             </div>
                             
-                            <div class="p-4 bg-gray-800 rounded-xl text-center">
-                                <div class="text-3xl text-purple-500 mb-3">
+                            <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
+                                <div class="text-2xl md:text-3xl text-purple-500 mb-2 md:mb-3">
                                     <i class="fas fa-bolt"></i>
                                 </div>
-                                <h4 class="font-semibold mb-2">Real-time</h4>
-                                <p class="text-sm text-gray-400">Streaming langsung tanpa delay</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Real-time</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Streaming langsung tanpa delay</p>
                             </div>
                         </div>
                     </div>
@@ -469,24 +587,59 @@
             </div>
         </div>
 
+        <!-- Mobile Bottom Navigation -->
+        <div class="mobile-bottom-nav">
+            <div class="flex justify-around items-center">
+                <button @click="mobileMenuActive = 'controls'" 
+                        class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
+                        :class="mobileMenuActive === 'controls' ? 'bg-blue-900 text-blue-300' : 'text-gray-400 hover:text-white'">
+                    <i class="fas fa-sliders-h text-lg mb-1"></i>
+                    <span class="text-xs">Kontrol</span>
+                </button>
+                
+                <button @click="mobileMenuActive = 'video'" 
+                        class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
+                        :class="mobileMenuActive === 'video' ? 'bg-purple-900 text-purple-300' : 'text-gray-400 hover:text-white'">
+                    <i class="fas fa-video text-lg mb-1"></i>
+                    <span class="text-xs">Video</span>
+                </button>
+                
+                <button @click="startScreenShare()" 
+                        :disabled="!isInRoom || isSharing"
+                        class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
+                        :class="isSharing ? 'bg-red-900 text-red-300' : (!isInRoom || isSharing ? 'bg-gray-700 text-gray-500' : 'bg-blue-900 text-blue-300')">
+                    <i class="fas fa-share-square text-lg mb-1"></i>
+                    <span class="text-xs" x-text="isSharing ? 'Stop' : 'Share'"></span>
+                </button>
+                
+                <button @click="joinRoom()" 
+                        :disabled="!roomId || isInRoom"
+                        class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
+                        :class="isInRoom ? 'bg-green-900 text-green-300' : (!roomId ? 'bg-gray-700 text-gray-500' : 'bg-blue-900 text-blue-300')">
+                    <i class="fas fa-door-open text-lg mb-1"></i>
+                    <span class="text-xs" x-text="isInRoom ? 'Joined' : 'Join'"></span>
+                </button>
+            </div>
+        </div>
+
         <!-- Footer -->
-        <footer class="mt-12 pt-8 border-t border-gray-800">
+        <footer class="mt-8 md:mt-12 pt-6 md:pt-8 border-t border-gray-800">
             <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-4 md:mb-0">
-                    <p class="text-gray-500">
+                <div class="mb-3 md:mb-0 text-center md:text-left">
+                    <p class="text-gray-500 text-sm md:text-base">
                         <i class="fas fa-heart text-red-500 mr-1"></i>
                         Dibuat dengan Express.js, Alpine.js, dan Tailwind CSS
                     </p>
-                    <p class="text-sm text-gray-600 mt-1">
+                    <p class="text-xs md:text-sm text-gray-600 mt-1">
                         © 2024 Screen Share App. Untuk keperluan presentasi dan kolaborasi.
                     </p>
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3 md:space-x-4">
                     <div class="flex items-center">
                         <div class="status-indicator" :class="isConnected ? 'bg-green-500' : 'bg-red-500'"></div>
-                        <span class="text-sm" x-text="isConnected ? 'Server Online' : 'Server Offline'"></span>
+                        <span class="text-xs md:text-sm" x-text="isConnected ? 'Server Online' : 'Server Offline'"></span>
                     </div>
-                    <div class="text-sm text-gray-500">
+                    <div class="text-xs md:text-sm text-gray-500">
                         <i class="fas fa-code-branch mr-1"></i>
                         v1.0.0
                     </div>
