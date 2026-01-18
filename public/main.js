@@ -23,6 +23,11 @@ function app() {
         localStream: null,
         peerConnections: {},
         
+        // Audio processing
+        audioContext: null,
+        audioNodes: null,
+        audioMonitorInterval: null,
+        
         // Konfigurasi connection attempts
         maxConnectionAttempts: 3,
         connectionAttempts: {},
@@ -58,7 +63,21 @@ function app() {
                 }
             ],
             iceCandidatePoolSize: 10,
-            iceTransportPolicy: 'all'
+            iceTransportPolicy: 'all',
+            // Konfigurasi untuk audio yang lebih stabil
+            encodedInsertableStreams: false,
+            forceEncodedAudioInsertableStreams: false,
+            forceEncodedVideoInsertableStreams: false
+        },
+        
+        // Audio constraints untuk stabilisasi
+        audioConstraints: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 48000,
+            channelCount: 2,
+            latency: 0.01
         },
         
         // Inisialisasi
@@ -315,6 +334,106 @@ function app() {
             }
         },
         
+        // Setup Audio Normalization
+        setupAudioNormalization(audioTrack) {
+            try {
+                if (!audioTrack || !window.AudioContext) {
+                    console.log('AudioContext tidak tersedia, melewati normalisasi audio');
+                    return;
+                }
+                
+                console.log('🔧 Setting up audio normalization...');
+                
+                // Cek apakah track sudah memiliki processing
+                const settings = audioTrack.getSettings();
+                if (settings.autoGainControl) {
+                    console.log('✅ Auto gain control sudah aktif di track');
+                }
+                
+                // Buat AudioContext jika belum ada
+                if (!this.audioContext || this.audioContext.state === 'closed') {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                        sampleRate: 48000,
+                        latencyHint: 'interactive'
+                    });
+                }
+                
+                // Buat source dari track audio
+                const source = this.audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+                
+                // Buat compressor untuk menstabilkan volume
+                const compressor = this.audioContext.createDynamicsCompressor();
+                compressor.threshold.value = -20;    // Threshold -20 dB
+                compressor.knee.value = 10;          // Soft knee 10 dB
+                compressor.ratio.value = 4;          // Ratio 4:1
+                compressor.attack.value = 0.005;     // Attack 5ms
+                compressor.release.value = 0.1;      // Release 100ms
+                
+                // Buat gain node untuk volume konstan
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = 0.8; // Volume 80% untuk mencegah clipping
+                
+                // Buat destination stream
+                const destination = this.audioContext.createMediaStreamDestination();
+                
+                // Hubungkan: source -> compressor -> gain -> destination
+                source.connect(compressor);
+                compressor.connect(gainNode);
+                gainNode.connect(destination);
+                
+                // Simpan nodes untuk cleanup
+                this.audioNodes = { source, compressor, gainNode, destination };
+                
+                // Ganti audio track di localStream dengan yang sudah diproses
+                this.localStream.removeTrack(audioTrack);
+                this.localStream.addTrack(destination.stream.getAudioTracks()[0]);
+                
+                console.log('✅ Audio normalization enabled');
+                
+                // Log parameter untuk debugging
+                console.log('🎛️ Audio processing parameters:', {
+                    sampleRate: this.audioContext.sampleRate,
+                    compressionRatio: compressor.ratio.value,
+                    gain: gainNode.gain.value
+                });
+                
+            } catch (error) {
+                console.warn('⚠️ Audio normalization error:', error);
+                // Jangan crash jika audio processing gagal
+            }
+        },
+        
+        // Monitor kualitas audio
+        monitorAudioQuality() {
+            if (!this.localStream || !this.shareAudio || this.audioMonitorInterval) return;
+            
+            const audioTracks = this.localStream.getAudioTracks();
+            if (audioTracks.length === 0) return;
+            
+            console.log('📊 Starting audio quality monitoring...');
+            
+            this.audioMonitorInterval = setInterval(() => {
+                try {
+                    const track = audioTracks[0];
+                    const settings = track.getSettings();
+                    
+                    // Log audio metrics
+                    const stats = {
+                        autoGainControl: settings.autoGainControl,
+                        echoCancellation: settings.echoCancellation,
+                        noiseSuppression: settings.noiseSuppression,
+                        sampleRate: settings.sampleRate,
+                        channelCount: settings.channelCount
+                    };
+                    
+                    console.log('📈 Audio stats:', stats);
+                    
+                } catch (error) {
+                    console.warn('⚠️ Audio monitoring error:', error);
+                }
+            }, 5000); // Periksa setiap 5 detik
+        },
+        
         // Inisialisasi Socket.io
         initializeSocket() {
             console.log('🔌 Menghubungkan ke server...');
@@ -440,25 +559,80 @@ function app() {
             try {
                 console.log('🎬 Starting screen share with audio:', this.shareAudio);
                 
+                // Konfigurasi untuk layar
                 const displayOptions = {
                     video: {
                         cursor: "always",
-                        displaySurface: "monitor"
-                    },
-                    audio: this.shareAudio
+                        displaySurface: "monitor",
+                        frameRate: { ideal: 30, max: 60 }
+                    }
                 };
                 
-                if (this.shareAudio && navigator.userAgent.indexOf('Chrome') > -1) {
-                    displayOptions.audio = {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100,
-                        suppressLocalAudioPlayback: false
-                    };
+                // Konfigurasi audio jika diaktifkan
+                if (this.shareAudio) {
+                    // Untuk Chrome/Edge yang mendukung audio sistem
+                    if (navigator.userAgent.indexOf('Chrome') > -1) {
+                        displayOptions.audio = {
+                            echoCancellation: this.audioConstraints.echoCancellation,
+                            noiseSuppression: this.audioConstraints.noiseSuppression,
+                            autoGainControl: this.audioConstraints.autoGainControl,
+                            sampleRate: this.audioConstraints.sampleRate,
+                            channelCount: this.audioConstraints.channelCount,
+                            suppressLocalAudioPlayback: false
+                        };
+                        
+                        // Tambahkan constraint khusus Chrome
+                        displayOptions.audio = {
+                            ...displayOptions.audio,
+                            mandatory: {
+                                chromeMediaSource: 'desktop',
+                                chromeMediaSourceId: undefined
+                            }
+                        };
+                    } else {
+                        // Untuk browser lain
+                        displayOptions.audio = {
+                            echoCancellation: this.audioConstraints.echoCancellation,
+                            noiseSuppression: this.audioConstraints.noiseSuppression,
+                            autoGainControl: this.audioConstraints.autoGainControl
+                        };
+                    }
                 }
                 
+                console.log('🎛️ Display options:', displayOptions);
+                
+                // Minta izin untuk berbagi layar
                 this.localStream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
                 
+                // Setup audio normalization jika ada audio track
+                if (this.shareAudio && this.localStream.getAudioTracks().length > 0) {
+                    const audioTrack = this.localStream.getAudioTracks()[0];
+                    console.log('🔊 Audio track acquired:', {
+                        enabled: audioTrack.enabled,
+                        muted: audioTrack.muted,
+                        settings: audioTrack.getSettings()
+                    });
+                    
+                    // Setup audio normalization
+                    this.setupAudioNormalization(audioTrack);
+                    
+                    // Setup audio track event listeners
+                    audioTrack.addEventListener('mute', () => {
+                        console.log('🔇 Audio track muted');
+                        this.showNotification('Audio dimute oleh sistem', 'warning');
+                    });
+                    
+                    audioTrack.addEventListener('unmute', () => {
+                        console.log('🔊 Audio track unmuted');
+                    });
+                    
+                    audioTrack.addEventListener('ended', () => {
+                        console.log('⏹️ Audio track ended');
+                        this.showNotification('Audio dihentikan', 'info');
+                    });
+                }
+                
+                // Setup video di elemen lokal
                 const localVideo = this.$refs.localVideo;
                 if (localVideo) {
                     localVideo.srcObject = this.localStream;
@@ -466,15 +640,23 @@ function app() {
                     console.log('✅ Screen sharing started');
                     this.showNotification('Berbagi layar dimulai', 'success');
                     
+                    // Monitor kualitas audio
+                    if (this.shareAudio) {
+                        setTimeout(() => this.monitorAudioQuality(), 2000);
+                    }
+                    
                     if (window.innerWidth < 1024) {
                         this.mobileMenuActive = 'video';
                     }
                     
+                    // Kirim notifikasi ke server
                     this.socket.emit('sharing-started');
                 }
                 
+                // Kirim stream ke semua peer
                 this.sendStreamToAllPeers();
                 
+                // Setup event listener untuk saat user menghentikan sharing dari browser
                 const videoTrack = this.localStream.getVideoTracks()[0];
                 if (videoTrack) {
                     videoTrack.onended = () => {
@@ -493,6 +675,8 @@ function app() {
                     errorMessage = 'Tidak ada layar atau jendela yang tersedia untuk dibagikan.';
                 } else if (error.name === 'NotReadableError') {
                     errorMessage = 'Tidak dapat membaca layar. Mungkin aplikasi lain sedang menggunakan kamera/layar.';
+                } else if (error.name === 'OverconstrainedError') {
+                    errorMessage = 'Konfigurasi audio/video tidak didukung. Coba nonaktifkan audio.';
                 } else {
                     errorMessage += error.message;
                 }
@@ -503,6 +687,42 @@ function app() {
         
         // Berhenti berbagi layar
         stopScreenShare() {
+            // Hentikan audio monitoring
+            if (this.audioMonitorInterval) {
+                clearInterval(this.audioMonitorInterval);
+                this.audioMonitorInterval = null;
+                console.log('📊 Audio monitoring stopped');
+            }
+            
+            // Cleanup audio processing
+            if (this.audioNodes) {
+                try {
+                    if (this.audioNodes.source) {
+                        this.audioNodes.source.disconnect();
+                    }
+                    if (this.audioNodes.compressor) {
+                        this.audioNodes.compressor.disconnect();
+                    }
+                    if (this.audioNodes.gainNode) {
+                        this.audioNodes.gainNode.disconnect();
+                    }
+                    this.audioNodes = null;
+                } catch (error) {
+                    console.warn('Error cleaning up audio nodes:', error);
+                }
+            }
+            
+            // Close audio context
+            if (this.audioContext && this.audioContext.state !== 'closed') {
+                this.audioContext.close().then(() => {
+                    this.audioContext = null;
+                    console.log('🔇 AudioContext closed');
+                }).catch(error => {
+                    console.warn('Error closing AudioContext:', error);
+                });
+            }
+            
+            // Stop local stream
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
                     track.stop();
@@ -510,24 +730,32 @@ function app() {
                 this.localStream = null;
             }
             
+            // Clear local video
             const localVideo = this.$refs.localVideo;
             if (localVideo) {
                 localVideo.srcObject = null;
             }
             
+            // Update state
             this.isSharing = false;
             
+            // Remove tracks from peer connections
             Object.values(this.peerConnections).forEach(pc => {
-                if (pc) {
+                if (pc && pc.signalingState !== 'closed') {
                     const senders = pc.getSenders();
                     senders.forEach(sender => {
                         if (sender.track) {
-                            pc.removeTrack(sender);
+                            try {
+                                pc.removeTrack(sender);
+                            } catch (error) {
+                                console.warn('Error removing track:', error);
+                            }
                         }
                     });
                 }
             });
             
+            // Notify server
             this.socket.emit('sharing-stopped');
             
             console.log('🛑 Screen sharing stopped');
@@ -558,21 +786,45 @@ function app() {
             const peerConnection = new RTCPeerConnection(this.configuration);
             this.peerConnections[userId] = peerConnection;
             
+            // Tambahkan tracks jika ada localStream
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, this.localStream);
-                    console.log('➕ Added track:', track.kind, 'to peer:', userId);
+                    try {
+                        const sender = peerConnection.addTrack(track, this.localStream);
+                        console.log('➕ Added track:', track.kind, 'to peer:', userId);
+                        
+                        // Konfigurasi audio sender untuk kualitas yang lebih baik
+                        if (track.kind === 'audio' && sender.setParameters) {
+                            const params = sender.getParameters();
+                            if (params) {
+                                // Prioritaskan audio untuk kualitas yang lebih stabil
+                                params.priority = 'high';
+                                params.networkPriority = 'high';
+                                
+                                // Konfigurasi encoding untuk audio
+                                if (!params.encodings) {
+                                    params.encodings = [{}];
+                                }
+                                
+                                params.encodings[0].active = true;
+                                params.encodings[0].priority = 'high';
+                                params.encodings[0].networkPriority = 'high';
+                                
+                                sender.setParameters(params)
+                                    .then(() => console.log(`✅ Audio parameters set for ${userId}`))
+                                    .catch(err => console.warn(`⚠️ Failed to set audio parameters:`, err));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error adding track:', error);
+                    }
                 });
             }
             
-            // ICE Candidate handler dengan logging detail
+            // ICE Candidate handler
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    console.log('🧊 ICE Candidate ditemukan untuk', userId, ':', 
-                        event.candidate.type, event.candidate.protocol, 
-                        'address:', event.candidate.address, 
-                        'port:', event.candidate.port,
-                        'candidate:', event.candidate.candidate);
+                    console.log('🧊 ICE Candidate ditemukan untuk', userId);
                     
                     this.socket.emit('ice-candidate', {
                         candidate: event.candidate,
@@ -625,6 +877,12 @@ function app() {
             // Connection State handler
             peerConnection.onconnectionstatechange = () => {
                 console.log(`🔗 Connection state untuk ${userId}: ${peerConnection.connectionState}`);
+                
+                // Jika koneksi gagal, coba ulang
+                if (peerConnection.connectionState === 'failed') {
+                    console.log(`❌ Connection failed for ${userId}, retrying...`);
+                    this.retryConnection(userId);
+                }
             };
             
             // ICE Gathering State handler
@@ -632,6 +890,7 @@ function app() {
                 console.log(`❄️ ICE Gathering state untuk ${userId}: ${peerConnection.iceGatheringState}`);
             };
             
+            // Buat offer jika initiator
             if (isInitiator && this.localStream) {
                 setTimeout(() => {
                     this.createOffer(userId, peerConnection);
@@ -670,7 +929,8 @@ function app() {
                 const offerOptions = {
                     offerToReceiveAudio: true,
                     offerToReceiveVideo: true,
-                    voiceActivityDetection: false
+                    voiceActivityDetection: false, // Nonaktifkan VAD untuk volume konstan
+                    iceRestart: false
                 };
                 
                 const offer = await peerConnection.createOffer(offerOptions);
@@ -768,6 +1028,7 @@ function app() {
         sendStreamToPeer(userId, peerConnection) {
             if (!this.localStream) return;
             
+            // Hapus semua track yang ada
             const senders = peerConnection.getSenders();
             senders.forEach(sender => {
                 if (sender.track) {
@@ -775,10 +1036,12 @@ function app() {
                 }
             });
             
+            // Tambahkan track baru
             this.localStream.getTracks().forEach(track => {
                 peerConnection.addTrack(track, this.localStream);
             });
             
+            // Buat offer baru
             this.createOffer(userId, peerConnection);
         },
         
@@ -786,7 +1049,11 @@ function app() {
         closePeerConnection(userId) {
             const peerConnection = this.peerConnections[userId];
             if (peerConnection) {
-                peerConnection.close();
+                try {
+                    peerConnection.close();
+                } catch (error) {
+                    console.warn('Error closing peer connection:', error);
+                }
                 delete this.peerConnections[userId];
             }
             this.removeRemoteVideo(userId);
@@ -829,10 +1096,18 @@ function app() {
                     videoElement.autoplay = true;
                     videoElement.playsInline = true;
                     videoElement.className = 'w-full h-full object-cover';
+                    
+                    // Tambahkan event listener untuk audio
+                    videoElement.addEventListener('volumechange', () => {
+                        console.log(`🎚️ Remote video volume changed: ${videoElement.volume}`);
+                    });
                 }
                 
                 if (videoElement.srcObject !== videoData.stream) {
                     videoElement.srcObject = videoData.stream;
+                    
+                    // Set volume ke level yang stabil (80%)
+                    videoElement.volume = 0.8;
                 }
                 
                 const videoWrapper = document.createElement('div');
@@ -862,19 +1137,10 @@ function app() {
         // Helper: Tampilkan notifikasi
         showNotification(message, type = 'info') {
             const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${
-                type === 'success' ? 'bg-green-900 text-green-100' :
-                type === 'error' ? 'bg-red-900 text-red-100' :
-                type === 'warning' ? 'bg-yellow-900 text-yellow-100' :
-                'bg-blue-900 text-blue-100'
-            }`;
+            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${type === 'success' ? 'bg-green-900 text-green-100' : type === 'error' ? 'bg-red-900 text-red-100' : type === 'warning' ? 'bg-yellow-900 text-yellow-100' : 'bg-blue-900 text-blue-100'}`;
             notification.innerHTML = `
                 <div class="flex items-center">
-                    <i class="fas fa-${
-                        type === 'success' ? 'check-circle' :
-                        type === 'error' ? 'exclamation-circle' :
-                        type === 'warning' ? 'exclamation-triangle' : 'info-circle'
-                    } mr-3 flex-shrink-0"></i>
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'} mr-3 flex-shrink-0"></i>
                     <span class="text-sm md:text-base">${message}</span>
                 </div>
             `;
