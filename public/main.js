@@ -11,6 +11,10 @@ function app() {
         socketId: null,
         mobileMenuActive: 'video',
         
+        // State untuk daftar ruangan aktif
+        activeRooms: [],
+        showActiveRooms: false,
+        
         // State fullscreen
         localVideoFullscreen: false,
         remoteVideoFullscreen: false,
@@ -42,6 +46,13 @@ function app() {
             this.initializeSocket();
             this.setupMobileFeatures();
             this.setupFullscreenListeners();
+            
+            // Minta daftar ruangan aktif setiap 10 detik
+            setInterval(() => {
+                if (this.socket && this.isConnected) {
+                    this.socket.emit('get-active-rooms');
+                }
+            }, 10000);
         },
         
         // Setup fitur mobile
@@ -243,6 +254,38 @@ function app() {
             }
         },
         
+        // Method baru: Bergabung ke ruangan aktif
+        joinActiveRoom(roomId) {
+            if (this.isInRoom) {
+                if (confirm(`Anda sudah berada di ruangan ${this.roomId}. Pindah ke ruangan ${roomId}?`)) {
+                    this.leaveRoom();
+                    this.roomId = roomId;
+                    this.joinRoom();
+                    this.showActiveRooms = false;
+                }
+            } else {
+                this.roomId = roomId;
+                this.joinRoom();
+                this.showActiveRooms = false;
+            }
+        },
+        
+        // Method baru: Toggle panel ruangan aktif
+        toggleActiveRoomsPanel() {
+            this.showActiveRooms = !this.showActiveRooms;
+            if (this.showActiveRooms && this.socket) {
+                this.socket.emit('get-active-rooms');
+            }
+        },
+        
+        // Method baru: Refresh daftar ruangan aktif
+        refreshActiveRooms() {
+            if (this.socket) {
+                this.socket.emit('get-active-rooms');
+                this.showNotification('Menyegarkan daftar ruangan...', 'info');
+            }
+        },
+        
         // Toggle Audio
         toggleAudio() {
             if (this.isSharing) {
@@ -264,6 +307,9 @@ function app() {
                 this.socketId = this.socket.id;
                 this.showNotification('Terhubung ke server', 'success');
                 console.log('✅ Socket connected:', this.socketId);
+                
+                // Minta daftar ruangan aktif
+                this.socket.emit('get-active-rooms');
             });
             
             this.socket.on('disconnect', () => {
@@ -305,6 +351,21 @@ function app() {
                 console.log(`👤 User disconnected: ${userId}`);
             });
             
+            // LISTENER BARU: Daftar ruangan aktif
+            this.socket.on('active-rooms-list', (rooms) => {
+                this.activeRooms = rooms
+                    .filter(room => room.userCount > 0 && room.roomId !== this.roomId)
+                    .sort((a, b) => {
+                        // Prioritaskan ruangan yang ada sharing
+                        if (a.hasSharing && !b.hasSharing) return -1;
+                        if (!a.hasSharing && b.hasSharing) return 1;
+                        // Kemudian berdasarkan jumlah user
+                        return b.userCount - a.userCount;
+                    });
+                
+                console.log('📋 Active rooms updated:', this.activeRooms);
+            });
+            
             this.socket.on('offer', async (data) => {
                 await this.handleOffer(data);
             });
@@ -331,6 +392,7 @@ function app() {
             if (this.roomId && !this.isInRoom) {
                 this.socket.emit('join-room', this.roomId);
                 this.isInRoom = true;
+                this.showActiveRooms = false; // Tutup panel saat join
                 this.showNotification(`Bergabung ke ruangan ${this.roomId}`, 'success');
                 console.log(`🚪 Joining room: ${this.roomId}`);
             }
@@ -779,17 +841,15 @@ function app() {
             
             const notification = document.createElement('div');
             notification.setAttribute('data-notification', 'true');
-            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${
-                type === 'success' ? 'bg-green-900 text-green-100' :
+            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${type === 'success' ? 'bg-green-900 text-green-100' :
                 type === 'error' ? 'bg-red-900 text-red-100' :
-                'bg-blue-900 text-blue-100'
-            }`;
+                    'bg-blue-900 text-blue-100'
+                }`;
             notification.innerHTML = `
                 <div class="flex items-center">
-                    <i class="fas fa-${
-                        type === 'success' ? 'check-circle' :
-                        type === 'error' ? 'exclamation-circle' : 'info-circle'
-                    } mr-3 flex-shrink-0"></i>
+                    <i class="fas fa-${type === 'success' ? 'check-circle' :
+                    type === 'error' ? 'exclamation-circle' : 'info-circle'
+                } mr-3 flex-shrink-0"></i>
                     <span class="text-sm md:text-base">${message}</span>
                 </div>
             `;
