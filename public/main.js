@@ -17,15 +17,6 @@ function app() {
         isFullscreenMode: false,
         currentFullscreenVideo: null,
         
-        // YouTube Music Remote Control
-        youtubeMusicMode: false,
-        youtubePlaying: false,
-        youtubeVolume: 50,
-        youtubeCurrentTrack: 'Tidak ada lagu',
-        youtubeSearchQuery: '',
-        youtubeSearchResults: [],
-        showDebugInfo: false,
-        
         // Objek WebRTC
         socket: null,
         localStream: null,
@@ -38,17 +29,7 @@ function app() {
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
-                { 
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                },
-                { 
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
-                }
+                { urls: 'stun:stun4.l.google.com:19302' }
             ],
             encodedInsertableStreams: false,
             forceEncodedAudioInsertableStreams: false,
@@ -61,7 +42,6 @@ function app() {
             this.initializeSocket();
             this.setupMobileFeatures();
             this.setupFullscreenListeners();
-            this.setupYouTubeAutoCheck();
         },
         
         // Setup fitur mobile
@@ -87,16 +67,6 @@ function app() {
                 }
                 lastTouchEnd = now;
             }, false);
-        },
-        
-        // Setup YouTube auto-check
-        setupYouTubeAutoCheck() {
-            // Auto check YouTube status setiap 5 detik jika di room
-            setInterval(() => {
-                if (this.isInRoom && !this.isSharing && !this.youtubeMusicMode) {
-                    this.socket.emit('check-youtube-host', this.roomId);
-                }
-            }, 5000);
         },
         
         // Setup listener untuk fullscreen
@@ -280,7 +250,7 @@ function app() {
             }
         },
         
-        // Inisialisasi Socket.io dengan YouTube Music handlers
+        // Inisialisasi Socket.io
         initializeSocket() {
             this.socket = io(window.location.origin, {
                 reconnection: true,
@@ -294,13 +264,6 @@ function app() {
                 this.socketId = this.socket.id;
                 this.showNotification('Terhubung ke server', 'success');
                 console.log('✅ Socket connected:', this.socketId);
-                
-                // Cek YouTube status jika sudah di room
-                if (this.isInRoom) {
-                    setTimeout(() => {
-                        this.socket.emit('check-youtube-host', this.roomId);
-                    }, 1000);
-                }
             });
             
             this.socket.on('disconnect', () => {
@@ -326,11 +289,6 @@ function app() {
                 data.users.forEach(userId => {
                     this.createPeerConnection(userId, true);
                 });
-                
-                // Cek status YouTube Music session
-                setTimeout(() => {
-                    this.socket.emit('check-youtube-host', this.roomId);
-                }, 2000);
             });
             
             this.socket.on('user-connected', (userId) => {
@@ -366,304 +324,6 @@ function app() {
             this.socket.on('user-sharing-stopped', (userId) => {
                 this.showNotification('Pengguna lain berhenti berbagi layar', 'info');
             });
-            
-            // YouTube Music handlers
-            this.socket.on('youtube-music-command', (data) => {
-                console.log('🎵 Received YouTube command:', data);
-                this.handleYouTubeCommand(data);
-            });
-            
-            this.socket.on('youtube-session-info', (session) => {
-                console.log('🎵 YouTube session info:', session);
-                this.updateYouTubeSession(session);
-            });
-            
-            this.socket.on('youtube-host-disconnected', () => {
-                console.log('🎵 YouTube host disconnected');
-                if (!this.isSharing) {
-                    this.youtubeMusicMode = false;
-                    this.youtubePlaying = false;
-                    this.showNotification('Host YouTube Music telah keluar', 'info');
-                }
-            });
-            
-            this.socket.on('youtube-broadcast-status', (data) => {
-                console.log('🎵 YouTube broadcast status:', data);
-                this.handleYouTubeBroadcast(data);
-            });
-            
-            this.socket.on('youtube-host-check-response', (data) => {
-                console.log('🎵 YouTube host check response:', data);
-                this.handleHostCheckResponse(data);
-            });
-            
-            this.socket.on('youtube-control-error', (error) => {
-                console.error('🎵 YouTube control error:', error);
-                this.showNotification(`YouTube Error: ${error.message}`, 'error');
-            });
-            
-            this.socket.on('youtube-status-update', (status) => {
-                console.log('🎵 YouTube status update:', status);
-                this.youtubePlaying = status.playing;
-                this.youtubeVolume = status.volume;
-                if (status.currentTrack) {
-                    this.youtubeCurrentTrack = status.currentTrack;
-                }
-            });
-        },
-        
-        // YouTube Music: Toggle mode
-        toggleYouTubeMusicMode() {
-            if (!this.isInRoom) {
-                this.showNotification('Gabung ruangan terlebih dahulu', 'error');
-                this.youtubeMusicMode = false;
-                return;
-            }
-            
-            if (!this.isSharing) {
-                // Viewer tidak bisa toggle mode, hanya bisa cek status
-                this.socket.emit('check-youtube-host', this.roomId);
-                this.showNotification('Mengecek status host YouTube Music...', 'info');
-                return;
-            }
-            
-            // Host bisa toggle mode
-            const newMode = !this.youtubeMusicMode;
-            this.youtubeMusicMode = newMode;
-            
-            if (newMode) {
-                // Aktifkan sebagai host
-                this.socket.emit('register-youtube-host', {
-                    roomId: this.roomId,
-                    hostSocketId: this.socketId,
-                    hostName: 'Host'
-                });
-                
-                // Broadcast status ke semua user
-                setTimeout(() => {
-                    this.socket.emit('broadcast-youtube-status', {
-                        roomId: this.roomId,
-                        status: {
-                            hostActive: true,
-                            hostSocketId: this.socketId,
-                            hostName: 'Host',
-                            playing: this.youtubePlaying,
-                            volume: this.youtubeVolume,
-                            currentTrack: this.youtubeCurrentTrack
-                        }
-                    });
-                }, 500);
-                
-                this.showNotification('YouTube Music Remote aktif sebagai Host', 'success');
-                console.log('🎵 YouTube Music mode enabled as Host');
-            } else {
-                // Nonaktifkan
-                this.socket.emit('unregister-youtube-host', this.roomId);
-                
-                // Reset state
-                this.youtubePlaying = false;
-                this.youtubeCurrentTrack = 'Tidak ada lagu';
-                this.youtubeVolume = 50;
-                
-                this.showNotification('YouTube Music Remote dinonaktifkan', 'info');
-                console.log('🎵 YouTube Music mode disabled');
-            }
-        },
-        
-        // YouTube Music: Check host status
-        checkYouTubeHostStatus() {
-            if (!this.isInRoom) {
-                this.showNotification('Gabung ruangan terlebih dahulu', 'error');
-                return;
-            }
-            
-            this.socket.emit('check-youtube-host', this.roomId);
-            this.showNotification('Mengecek status host YouTube Music...', 'info');
-            console.log('🎵 Checking YouTube host status for room:', this.roomId);
-        },
-        
-        // YouTube Music: Send command
-        sendYouTubeCommand(action, value = null) {
-            console.log('🎵 Sending YouTube command:', action, value);
-            
-            if (!this.isInRoom) {
-                this.showNotification('Gabung ruangan terlebih dahulu', 'error');
-                return;
-            }
-            
-            if (!this.youtubeMusicMode) {
-                // Jika belum terhubung, cek dulu
-                this.socket.emit('check-youtube-host', this.roomId);
-                setTimeout(() => {
-                    if (this.youtubeMusicMode) {
-                        this.sendCommand(action, value);
-                    } else {
-                        this.showNotification('Tidak terhubung ke host YouTube Music', 'error');
-                    }
-                }, 500);
-                return;
-            }
-            
-            this.sendCommand(action, value);
-        },
-        
-        // Helper untuk mengirim command
-        sendCommand(action, value) {
-            this.socket.emit('youtube-music-control', {
-                roomId: this.roomId,
-                action,
-                value,
-                from: this.socketId
-            });
-            
-            // Update local state untuk feedback langsung
-            this.updateLocalState(action, value);
-        },
-        
-        // Update local state berdasarkan command
-        updateLocalState(action, value) {
-            switch(action) {
-                case 'play':
-                    this.youtubePlaying = true;
-                    this.showNotification('Memutar musik', 'info');
-                    break;
-                case 'pause':
-                    this.youtubePlaying = false;
-                    this.showNotification('Menjeda musik', 'info');
-                    break;
-                case 'next':
-                    this.showNotification('Lagu berikutnya', 'info');
-                    break;
-                case 'previous':
-                    this.showNotification('Lagu sebelumnya', 'info');
-                    break;
-                case 'volume':
-                    this.youtubeVolume = value;
-                    this.showNotification(`Volume: ${value}%`, 'info');
-                    break;
-                case 'playTrack':
-                    this.youtubeCurrentTrack = value;
-                    this.youtubePlaying = true;
-                    this.showNotification(`Memutar: ${value}`, 'success');
-                    break;
-                case 'search':
-                    this.youtubeSearchQuery = value;
-                    this.showNotification(`Mencari: ${value}`, 'info');
-                    break;
-            }
-        },
-        
-        // YouTube Music: Handle perintah dari remote (untuk host)
-        handleYouTubeCommand(data) {
-            if (!this.isSharing || !this.youtubeMusicMode) return;
-            
-            const { action, value, from } = data;
-            console.log(`🎵 Host received command from ${from}:`, action, value);
-            
-            // Update state lokal host
-            this.updateLocalState(action, value);
-            
-            // Kirim status update ke semua user
-            this.socket.emit('youtube-status-update', {
-                playing: this.youtubePlaying,
-                volume: this.youtubeVolume,
-                currentTrack: this.youtubeCurrentTrack
-            });
-            
-            // Log untuk debugging
-            this.logToDebug(`Command from ${from.substring(0, 6)}: ${action} ${value || ''}`);
-        },
-        
-        // YouTube Music: Update session info
-        updateYouTubeSession(session) {
-            this.youtubeMusicMode = true;
-            this.youtubePlaying = session.playing;
-            this.youtubeVolume = session.volume;
-            if (session.currentTrack) {
-                this.youtubeCurrentTrack = session.currentTrack;
-            }
-            console.log('🎵 YouTube session updated:', session);
-        },
-        
-        // YouTube Music: Handle broadcast status
-        handleYouTubeBroadcast(data) {
-            if (data.roomId !== this.roomId) return;
-            
-            console.log('🎵 Handling YouTube broadcast:', data);
-            
-            if (data.status.hostActive) {
-                this.youtubeMusicMode = true;
-                this.youtubePlaying = data.status.playing;
-                this.youtubeVolume = data.status.volume;
-                this.youtubeCurrentTrack = data.status.currentTrack || 'Tidak ada lagu';
-                
-                if (!this.isSharing) {
-                    this.showNotification('Terhubung ke host YouTube Music', 'success');
-                }
-            } else {
-                this.youtubeMusicMode = false;
-                if (!this.isSharing) {
-                    this.showNotification('Host YouTube Music tidak aktif', 'info');
-                }
-            }
-        },
-        
-        // YouTube Music: Handle host check response
-        handleHostCheckResponse(data) {
-            console.log('🎵 Host check response:', data);
-            
-            if (data.hasHost) {
-                this.youtubeMusicMode = true;
-                this.youtubePlaying = data.playing;
-                this.youtubeVolume = data.volume;
-                if (data.currentTrack) {
-                    this.youtubeCurrentTrack = data.currentTrack;
-                }
-                this.showNotification('Terhubung ke host YouTube Music', 'success');
-            } else {
-                this.youtubeMusicMode = false;
-                if (!this.isSharing) {
-                    this.showNotification('Host YouTube Music tidak ditemukan', 'info');
-                }
-            }
-        },
-        
-        // YouTube Music: Search
-        searchYouTubeMusic() {
-            if (this.youtubeSearchQuery.trim()) {
-                this.sendYouTubeCommand('search', this.youtubeSearchQuery);
-                
-                // Simulasi hasil pencarian
-                this.youtubeSearchResults = [
-                    { id: 1, title: `${this.youtubeSearchQuery} - Original Mix`, duration: '3:45' },
-                    { id: 2, title: `${this.youtubeSearchQuery} - Acoustic Version`, duration: '4:20' },
-                    { id: 3, title: `${this.youtubeSearchQuery} - Remix 2024`, duration: '3:15' },
-                    { id: 4, title: `Best of ${this.youtubeSearchQuery}`, duration: '1:00:00' }
-                ];
-            }
-        },
-        
-        // YouTube Music: Select track
-        selectYouTubeTrack(track) {
-            this.youtubeCurrentTrack = track.title;
-            this.sendYouTubeCommand('playTrack', track.title);
-            this.youtubeSearchResults = [];
-            this.youtubeSearchQuery = '';
-        },
-        
-        // Toggle debug info
-        toggleDebugInfo() {
-            this.showDebugInfo = !this.showDebugInfo;
-        },
-        
-        // Log ke debug panel
-        logToDebug(message) {
-            const debugPanel = document.getElementById('debugPanel');
-            if (debugPanel && debugPanel.style.display === 'block') {
-                const timestamp = new Date().toLocaleTimeString();
-                debugPanel.innerHTML += `[${timestamp}] ${message}<br>`;
-                debugPanel.scrollTop = debugPanel.scrollHeight;
-            }
         },
         
         // Bergabung ke ruangan
@@ -681,11 +341,6 @@ function app() {
             if (this.isInRoom) {
                 this.stopScreenShare();
                 
-                // Unregister YouTube host jika aktif
-                if (this.youtubeMusicMode) {
-                    this.socket.emit('unregister-youtube-host', this.roomId);
-                }
-                
                 Object.keys(this.peerConnections).forEach(userId => {
                     this.closePeerConnection(userId);
                 });
@@ -694,10 +349,6 @@ function app() {
                 this.isInRoom = false;
                 this.usersInRoom = 1;
                 this.remoteVideos = [];
-                this.youtubeMusicMode = false;
-                this.youtubePlaying = false;
-                this.youtubeCurrentTrack = 'Tidak ada lagu';
-                this.youtubeVolume = 50;
                 this.showNotification('Keluar dari ruangan', 'info');
                 console.log('🚪 Left room');
             }
@@ -821,7 +472,6 @@ function app() {
             }
             
             this.isSharing = false;
-            this.youtubeMusicMode = false;
             
             Object.values(this.peerConnections).forEach(pc => {
                 if (pc) {
@@ -835,7 +485,6 @@ function app() {
             });
             
             this.socket.emit('sharing-stopped');
-            this.socket.emit('unregister-youtube-host', this.roomId);
             this.showNotification('Berbagi layar dihentikan', 'info');
         },
         
@@ -1133,7 +782,6 @@ function app() {
             notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${
                 type === 'success' ? 'bg-green-900 text-green-100' :
                 type === 'error' ? 'bg-red-900 text-red-100' :
-                type === 'youtube' ? 'youtube-notification' :
                 'bg-blue-900 text-blue-100'
             }`;
             notification.innerHTML = `

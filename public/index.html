@@ -369,17 +369,6 @@
             display: flex !important;
         }
         
-        /* YouTube Music styles */
-        .youtube-indicator {
-            animation: youtubePulse 2s infinite;
-        }
-        
-        @keyframes youtubePulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
         input[type="range"]::-webkit-slider-thumb {
             appearance: none;
             height: 16px;
@@ -396,13 +385,6 @@
             background: #3b82f6;
             cursor: pointer;
             border: none;
-        }
-        
-        /* YouTube Music Notification */
-        .youtube-notification {
-            background: linear-gradient(135deg, #ff0000, #cc0000);
-            color: white;
-            border-left: 4px solid #ffcc00;
         }
         
         /* Debug Panel */
@@ -429,7 +411,7 @@
     <div class="fullscreen-backdrop" id="fullscreenBackdrop"></div>
     
     <!-- Fullscreen close button -->
-    <button class="fullscreen-close-btn" id="fullscreenCloseBtn" @click="exitFullscreen()">
+    <button class="fullscreen-close-btn" id="fullscreenCloseBtn" onclick="exitFullscreen()">
         <i class="fas fa-times"></i>
     </button>
     
@@ -587,81 +569,6 @@
                     </div>
                 </div>
 
-                <!-- Panel YouTube Music untuk Host -->
-                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl" 
-                     x-show="isSharing && isInRoom">
-                    <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
-                        <i class="fab fa-youtube mr-3 text-red-500"></i>
-                        YouTube Music Host
-                        <span x-show="youtubeMusicMode" class="ml-2 px-2 py-1 bg-red-900 rounded-full text-xs">
-                            <i class="fas fa-circle animate-pulse"></i> ACTIVE
-                        </span>
-                    </h2>
-                    
-                    <div class="space-y-4 md:space-y-6">
-                        <!-- Status dan Toggle -->
-                        <div class="flex items-center justify-between p-3 md:p-4 bg-gray-800 rounded-xl">
-                            <div class="flex items-center">
-                                <div class="p-2 bg-red-900 rounded-lg mr-3">
-                                    <i class="fab fa-youtube text-base md:text-lg"></i>
-                                </div>
-                                <div>
-                                    <p class="font-semibold text-sm md:text-base">Remote Control</p>
-                                    <p class="text-xs md:text-sm text-gray-400" x-text="youtubeMusicMode ? 'Aktif sebagai Host' : 'Nonaktif'"></p>
-                                </div>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" 
-                                       x-model="youtubeMusicMode" 
-                                       @change="toggleYouTubeMusicMode()"
-                                       :disabled="!isInRoom">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        
-                        <!-- Status Info -->
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="youtubeMusicMode">
-                            <div class="grid grid-cols-2 gap-3 mb-3">
-                                <div>
-                                    <p class="text-gray-400 text-sm">Status</p>
-                                    <p class="font-semibold" x-text="youtubePlaying ? '▶️ Playing' : '⏸️ Paused'"></p>
-                                </div>
-                                <div>
-                                    <p class="text-gray-400 text-sm">Volume</p>
-                                    <p class="font-semibold" x-text="youtubeVolume + '%'"></p>
-                                </div>
-                            </div>
-                            <div>
-                                <p class="text-gray-400 text-sm mb-1">Current Track</p>
-                                <p class="font-semibold text-sm truncate" x-text="youtubeCurrentTrack"></p>
-                            </div>
-                            <div class="mt-3 pt-3 border-t border-gray-700">
-                                <p class="text-xs text-gray-500">
-                                    <i class="fas fa-info-circle mr-1"></i>
-                                    User lain dapat kontrol dari panel Music
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <!-- Quick Actions untuk Host -->
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl" x-show="youtubeMusicMode">
-                            <h3 class="font-semibold mb-3 text-sm">Quick Actions</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button @click="sendYouTubeCommand('play')"
-                                        :disabled="!youtubeMusicMode"
-                                        class="p-2 bg-green-900 hover:bg-green-800 rounded-lg text-sm">
-                                    <i class="fas fa-play mr-1"></i> Play
-                                </button>
-                                <button @click="sendYouTubeCommand('pause')"
-                                        :disabled="!youtubeMusicMode"
-                                        class="p-2 bg-yellow-900 hover:bg-yellow-800 rounded-lg text-sm">
-                                    <i class="fas fa-pause mr-1"></i> Pause
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Informasi Teknis -->
                 <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl">
                     <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
@@ -701,31 +608,6 @@
                         
                         <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
                             <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
-                                <i class="fab fa-youtube mr-2 text-red-500"></i>
-                                YouTube Music Remote:
-                            </p>
-                            <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
-                                <li class="flex items-start">
-                                    <i class="fas fa-desktop mr-2 text-xs mt-0.5"></i>
-                                    <span>Bagikan layar YouTube Music</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-toggle-on mr-2 text-xs mt-0.5"></i>
-                                    <span>Aktifkan YouTube Remote Control</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-users mr-2 text-xs mt-0.5"></i>
-                                    <span>User lain kontrol musik dari panel Music</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-play mr-2 text-xs mt-0.5"></i>
-                                    <span>Play/Pause, Next/Previous, Volume</span>
-                                </li>
-                            </ul>
-                        </div>
-                        
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
-                            <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
                                 <i class="fas fa-exclamation-triangle mr-2 text-orange-500"></i>
                                 Catatan Penting:
                             </p>
@@ -752,7 +634,7 @@
                 </div>
             </div>
 
-            <!-- Panel Video dan Music -->
+            <!-- Panel Video -->
             <div class="lg:col-span-2 space-y-4 md:space-y-8">
                 <!-- Panel Video -->
                 <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl"
@@ -793,10 +675,6 @@
                             <div class="text-xs md:text-sm text-gray-400">
                                 <i class="fas fa-microphone mr-1"></i>
                                 <span x-text="shareAudio ? 'Audio: Aktif' : 'Audio: Nonaktif'"></span>
-                                <span x-show="youtubeMusicMode" class="ml-2">
-                                    <i class="fab fa-youtube text-red-500 mr-1"></i>
-                                    <span>Remote Active</span>
-                                </span>
                             </div>
                         </div>
                         <div class="video-container video-container-mobile" :class="{'fullscreen-mode': localVideoFullscreen}">
@@ -884,158 +762,11 @@
                             
                             <div class="p-3 md:p-4 bg-gray-800 rounded-xl text-center">
                                 <div class="text-2xl md:text-3xl text-purple-500 mb-2 md:mb-3">
-                                    <i class="fab fa-youtube"></i>
+                                    <i class="fas fa-expand"></i>
                                 </div>
-                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Music Remote</h4>
-                                <p class="text-xs md:text-sm text-gray-400">Kontrol YouTube Music bersama-sama</p>
+                                <h4 class="font-semibold mb-1 md:mb-2 text-sm md:text-base">Fullscreen</h4>
+                                <p class="text-xs md:text-sm text-gray-400">Mode layar penuh untuk pengalaman terbaik</p>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Panel Remote Control untuk Viewer -->
-                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl"
-                     :class="{'hidden': mobileMenuActive !== 'music' && window.innerWidth < 1024}" 
-                     x-show="(window.innerWidth >= 1024 || mobileMenuActive === 'music') && !isSharing && isInRoom">
-                    <div class="flex items-center justify-between mb-4 md:mb-6">
-                        <h2 class="text-xl md:text-2xl font-bold flex items-center">
-                            <i class="fas fa-remote mr-3 text-blue-400"></i>
-                            Music Remote Control
-                        </h2>
-                        <div class="flex space-x-2">
-                            <button @click="checkYouTubeHostStatus()"
-                                    class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
-                            <button @click="toggleDebugPanel()"
-                                    class="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm">
-                                <i class="fas fa-bug"></i> Debug
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Status Indicator -->
-                    <div class="mb-4 p-3 rounded-lg" 
-                         :class="youtubeMusicMode ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-400'">
-                        <div class="flex items-center">
-                            <i class="fas" :class="youtubeMusicMode ? 'fa-check-circle' : 'fa-times-circle'"></i>
-                            <span class="ml-2 text-sm">
-                                <span x-text="youtubeMusicMode ? 'Terhubung ke Host' : 'Menunggu Host...'"></span>
-                                <span x-show="youtubeMusicMode" class="ml-2 text-xs">
-                                    <i class="fas fa-volume-up"></i> <span x-text="youtubeVolume + '%'"></span>
-                                </span>
-                            </span>
-                        </div>
-                        <div class="mt-2 text-xs" x-show="youtubeMusicMode && youtubeCurrentTrack">
-                            <i class="fas fa-music"></i>
-                            <span class="ml-1 truncate" x-text="youtubeCurrentTrack"></span>
-                        </div>
-                    </div>
-                    
-                    <!-- Kontrol Musik (hanya tampil jika connected) -->
-                    <div x-show="youtubeMusicMode" class="space-y-4 md:space-y-6">
-                        <!-- Kontrol Utama -->
-                        <div class="bg-gray-800 rounded-xl p-4">
-                            <div class="flex justify-center space-x-4 mb-4">
-                                <button @click="sendYouTubeCommand('previous')" 
-                                        class="w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center">
-                                    <i class="fas fa-step-backward text-lg"></i>
-                                </button>
-                                
-                                <button @click="sendYouTubeCommand(youtubePlaying ? 'pause' : 'play')" 
-                                        class="w-16 h-16 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center youtube-indicator">
-                                    <i class="fas text-xl" :class="youtubePlaying ? 'fa-pause' : 'fa-play'"></i>
-                                </button>
-                                
-                                <button @click="sendYouTubeCommand('next')" 
-                                        class="w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center">
-                                    <i class="fas fa-step-forward text-lg"></i>
-                                </button>
-                            </div>
-                            
-                            <!-- Volume Control -->
-                            <div class="mb-4">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-gray-400 text-sm">Volume</span>
-                                    <span class="text-sm font-semibold" x-text="youtubeVolume + '%'"></span>
-                                </div>
-                                <div class="flex items-center space-x-2">
-                                    <button @click="sendYouTubeCommand('volume', Math.max(youtubeVolume - 10, 0))" 
-                                            class="w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-volume-down"></i>
-                                    </button>
-                                    
-                                    <input type="range" 
-                                           x-model="youtubeVolume" 
-                                           @input="sendYouTubeCommand('volume', youtubeVolume)"
-                                           min="0" max="100" step="10"
-                                           class="flex-grow h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
-                                    
-                                    <button @click="sendYouTubeCommand('volume', Math.min(youtubeVolume + 10, 100))" 
-                                            class="w-10 h-10 bg-gray-700 hover:bg-gray-600 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-volume-up"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Quick Play Buttons -->
-                        <div class="bg-gray-800 rounded-xl p-4">
-                            <h3 class="font-semibold mb-3 text-sm">Quick Play</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button @click="sendYouTubeCommand('playTrack', 'Top Hits 2024')" 
-                                        class="p-2 bg-gray-900 hover:bg-blue-900 rounded-lg text-sm transition-colors">
-                                    <i class="fas fa-fire mr-1"></i> Top Hits
-                                </button>
-                                <button @click="sendYouTubeCommand('playTrack', 'Chill Lo-Fi')" 
-                                        class="p-2 bg-gray-900 hover:bg-purple-900 rounded-lg text-sm transition-colors">
-                                    <i class="fas fa-headphones mr-1"></i> Lo-Fi
-                                </button>
-                                <button @click="sendYouTubeCommand('playTrack', 'Workout Music')" 
-                                        class="p-2 bg-gray-900 hover:bg-green-900 rounded-lg text-sm transition-colors">
-                                    <i class="fas fa-running mr-1"></i> Workout
-                                </button>
-                                <button @click="sendYouTubeCommand('playTrack', 'Focus Study')" 
-                                        class="p-2 bg-gray-900 hover:bg-yellow-900 rounded-lg text-sm transition-colors">
-                                    <i class="fas fa-graduation-cap mr-1"></i> Study
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Debug Info (hanya tampil jika debug mode) -->
-                        <div class="bg-gray-800 rounded-xl p-4" x-show="showDebugInfo">
-                            <h3 class="font-semibold mb-2 text-sm text-yellow-400">
-                                <i class="fas fa-bug mr-1"></i> Debug Info
-                            </h3>
-                            <div class="text-xs text-gray-400 space-y-1">
-                                <div>Room ID: <span class="text-white" x-text="roomId"></span></div>
-                                <div>YouTube Mode: <span class="text-white" x-text="youtubeMusicMode"></span></div>
-                                <div>Playing: <span class="text-white" x-text="youtubePlaying"></span></div>
-                                <div>Volume: <span class="text-white" x-text="youtubeVolume"></span></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Waiting State -->
-                    <div x-show="!youtubeMusicMode" class="text-center py-8">
-                        <div class="text-5xl text-gray-700 mb-4">
-                            <i class="fab fa-youtube"></i>
-                        </div>
-                        <h3 class="text-lg font-semibold mb-2">YouTube Remote Tidak Aktif</h3>
-                        <p class="text-gray-500 text-sm mb-4">
-                            Host belum mengaktifkan remote control untuk YouTube Music
-                        </p>
-                        <div class="space-y-2">
-                            <button @click="checkYouTubeHostStatus()"
-                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">
-                                <i class="fas fa-sync-alt mr-2"></i>Cek Status Host
-                            </button>
-                            <p class="text-xs text-gray-500 mt-3">
-                                Pastikan host sudah:<br>
-                                1. Bergabung di room yang sama<br>
-                                2. Sedang berbagi layar<br>
-                                3. Mengaktifkan YouTube Music Remote
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -1059,11 +790,10 @@
                     <span class="text-xs">Video</span>
                 </button>
                 
-                <button @click="mobileMenuActive = 'music'" 
-                        class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
-                        :class="mobileMenuActive === 'music' ? 'bg-red-900 text-red-300' : 'text-gray-400 hover:text-white'">
-                    <i class="fab fa-youtube text-lg mb-1"></i>
-                    <span class="text-xs">Music</span>
+                <button @click="toggleDebugPanel()"
+                        class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors text-gray-400 hover:text-white">
+                    <i class="fas fa-bug text-lg mb-1"></i>
+                    <span class="text-xs">Debug</span>
                 </button>
                 
                 <button @click="startScreenShare()" 
@@ -1099,7 +829,7 @@
                     </div>
                     <div class="text-xs md:text-sm text-gray-500">
                         <i class="fas fa-code-branch mr-1"></i>
-                        v2.1.0
+                        v2.0.0
                     </div>
                 </div>
             </div>
@@ -1108,191 +838,25 @@
 
     <script src="main.js"></script>
     
-    <!-- Bookmarklet Script -->
+    <!-- Helper Functions -->
     <script>
-    // Function to create YouTube Music Bookmarklet
-    function createYouTubeBookmarklet() {
-        const script = `
-        // YouTube Music Remote Controller
-        (function() {
-            console.log('🎵 YouTube Music Remote Controller Activated');
-            
-            // Simpan elemen YouTube Music
-            let youtubePlayer = null;
-            let currentVideoId = null;
-            
-            // Cari player YouTube
-            function findYouTubePlayer() {
-                // Coba beberapa selector
-                const selectors = [
-                    'video',
-                    '.html5-video-player',
-                    'ytmusic-player',
-                    '#movie_player'
-                ];
-                
-                for (const selector of selectors) {
-                    const element = document.querySelector(selector);
-                    if (element) {
-                        youtubePlayer = element;
-                        break;
-                    }
-                }
-                
-                return !!youtubePlayer;
+    // Function to exit fullscreen
+    function exitFullscreen() {
+        const appState = Alpine.$data(document.querySelector('[x-data]'));
+        if (appState && appState.exitFullscreen) {
+            appState.exitFullscreen();
+        } else {
+            // Fallback method
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
             }
-            
-            // Kontrol YouTube Music
-            const controls = {
-                play() {
-                    if (!findYouTubePlayer()) return false;
-                    youtubePlayer.play();
-                    return true;
-                },
-                
-                pause() {
-                    if (!findYouTubePlayer()) return false;
-                    youtubePlayer.pause();
-                    return true;
-                },
-                
-                next() {
-                    const nextBtn = document.querySelector('ytmusic-player [data-tooltip-target-id="next-button"]') ||
-                                   document.querySelector('.ytp-next-button') ||
-                                   document.querySelector('button[aria-label^="Next"]');
-                    if (nextBtn) nextBtn.click();
-                    return true;
-                },
-                
-                previous() {
-                    const prevBtn = document.querySelector('ytmusic-player [data-tooltip-target-id="previous-button"]') ||
-                                   document.querySelector('.ytp-prev-button') ||
-                                   document.querySelector('button[aria-label^="Previous"]');
-                    if (prevBtn) prevBtn.click();
-                    return true;
-                },
-                
-                setVolume(volume) {
-                    if (!findYouTubePlayer()) return false;
-                    if (youtubePlayer.volume !== undefined) {
-                        youtubePlayer.volume = volume / 100;
-                    }
-                    return true;
-                },
-                
-                search(query) {
-                    const searchInput = document.querySelector('input#search') ||
-                                       document.querySelector('input[placeholder*="Search"]') ||
-                                       document.querySelector('#search-input input');
-                    if (searchInput) {
-                        searchInput.value = query;
-                        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-                        
-                        // Trigger search
-                        setTimeout(() => {
-                            searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-                        }, 500);
-                    }
-                    return true;
-                },
-                
-                playTrack(trackName) {
-                    // Cari dan klik track
-                    const trackElements = document.querySelectorAll('ytmusic-responsive-list-item-renderer, ytmusic-playlist-shelf-renderer');
-                    for (const element of trackElements) {
-                        if (element.textContent.includes(trackName)) {
-                            element.click();
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-            };
-            
-            // Terhubung ke server Screen Share App
-            const socket = io(window.location.origin);
-            
-            socket.on('connect', () => {
-                console.log('🎵 Connected to Screen Share App');
-                
-                // Dapatkan room ID dari prompt
-                const roomId = prompt('🎵 Masukkan Room ID untuk YouTube Music Remote:');
-                if (roomId) {
-                    socket.emit('register-youtube-host', roomId);
-                    
-                    // Update title
-                    document.title = '🎵 YouTube Music - Room: ' + roomId;
-                    
-                    // Tampilkan status
-                    alert('🎵 YouTube Music Remote Controller Aktif!\\n\\nRoom: ' + roomId + '\\n\\nKembali ke Screen Share App untuk kontrol musik.');
-                }
-            });
-            
-            // Terima perintah remote
-            socket.on('youtube-music-command', (data) => {
-                console.log('🎵 Received command:', data);
-                
-                const { action, value } = data;
-                
-                if (controls[action]) {
-                    const success = controls[action](value);
-                    
-                    if (success) {
-                        console.log('🎵 Executed: ' + action + (value ? ' with value: ' + value : ''));
-                    }
-                }
-            });
-            
-            // Deteksi perubahan video
-            const observer = new MutationObserver(() => {
-                const videoTitle = document.querySelector('.title yt-formatted-string') ||
-                                  document.querySelector('.ytmusic-player-bar.title') ||
-                                  document.querySelector('#info-contents h1') ||
-                                  document.title;
-                
-                if (videoTitle && videoTitle !== currentVideoId) {
-                    currentVideoId = videoTitle;
-                    console.log('🎵 Now playing:', videoTitle);
-                }
-            });
-            
-            observer.observe(document.body, { childList: true, subtree: true });
-            
-            // Auto-detect and inject controls
-            setTimeout(() => {
-                if (findYouTubePlayer()) {
-                    console.log('🎵 YouTube Music player found');
-                    
-                    // Tambahkan overlay kontrol remote
-                    const remoteOverlay = document.createElement('div');
-                    remoteOverlay.innerHTML = '<div style="position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 10px; z-index: 9999; font-size: 12px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);">' +
-                                              '<div style="display: flex; align-items: center; gap: 10px;">' +
-                                              '<span style="color: red; font-size: 14px;">▶️</span>' +
-                                              '<div>' +
-                                              '<div style="font-weight: bold;">YouTube Remote Active</div>' +
-                                              '<div style="font-size: 10px; opacity: 0.8;">Kontrol dari Screen Share App</div>' +
-                                              '</div>' +
-                                              '</div>' +
-                                              '</div>';
-                    document.body.appendChild(remoteOverlay);
-                }
-            }, 2000);
-            
-            console.log('🎵 YouTube Music Remote Controller Ready');
-        })();
-        `;
-        
-        // Create bookmarklet
-        const bookmarklet = 'javascript:(function(){' + encodeURIComponent(script) + '})()';
-        
-        // Create download link
-        const link = document.createElement('a');
-        link.href = 'data:text/javascript;charset=utf-8,' + encodeURIComponent(bookmarklet);
-        link.download = 'youtube-remote-bookmarklet.js';
-        link.click();
-        
-        // Show instructions
-        alert('🎵 YouTube Music Remote Control Bookmarklet\\n\\n1. Buka YouTube Music di tab baru\\n2. Buat bookmark baru\\n3. Paste kode berikut sebagai URL:\\n\\n' + bookmarklet.substring(0, 150) + '...\\n\\n4. Klik bookmarklet saat di YouTube Music untuk mengaktifkan remote control.\\n\\nLink download telah dibuat.');
+        }
     }
 
     // Toggle debug panel
@@ -1315,53 +879,24 @@ Room ID: ${appState.roomId}
 Connected: ${appState.isConnected}
 In Room: ${appState.isInRoom}
 Sharing: ${appState.isSharing}
-YouTube Mode: ${appState.youtubeMusicMode}
-YouTube Playing: ${appState.youtubePlaying}
-YouTube Volume: ${appState.youtubeVolume}
-YouTube Track: ${appState.youtubeCurrentTrack}
+Audio: ${appState.shareAudio}
 Users in Room: ${appState.usersInRoom}
 Remote Videos: ${appState.remoteVideos.length}
+Fullscreen Mode: ${appState.isFullscreenMode}
+Local Fullscreen: ${appState.localVideoFullscreen}
+Remote Fullscreen: ${appState.remoteVideoFullscreen}
+Socket ID: ${appState.socketId}
             `;
             panel.textContent = debugInfo;
             setTimeout(updateDebugPanel, 1000);
         }
     }
 
-    // Add bookmarklet button when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(() => {
-            const infoPanel = document.querySelector('.glass-card:has(.fa-info-circle)');
-            if (infoPanel) {
-                const tipsDiv = infoPanel.querySelector('.space-y-3');
-                if (tipsDiv) {
-                    const bookmarkletHtml = '<div class="p-3 md:p-4 bg-gray-800 rounded-xl">' +
-                                            '<p class="font-semibold mb-2 flex items-center text-sm md:text-base">' +
-                                            '<i class="fas fa-bookmark mr-2 text-blue-500"></i>' +
-                                            'YouTube Music Bookmarklet:' +
-                                            '</p>' +
-                                            '<div class="text-xs md:text-sm text-gray-400 space-y-2 ml-1 mb-3">' +
-                                            '<li class="flex items-start">' +
-                                            '<i class="fas fa-mouse-pointer mr-2 text-xs mt-0.5"></i>' +
-                                            '<span>Download bookmarklet untuk kontrol YouTube Music</span>' +
-                                            '</li>' +
-                                            '<li class="flex items-start">' +
-                                            '<i class="fas fa-bookmark mr-2 text-xs mt-0.5"></i>' +
-                                            '<span>Jalankan bookmarklet di YouTube Music</span>' +
-                                            '</li>' +
-                                            '<li class="flex items-start">' +
-                                            '<i class="fas fa-link mr-2 text-xs mt-0.5"></i>' +
-                                            '<span>Terhubung otomatis dengan room ini</span>' +
-                                            '</li>' +
-                                            '</div>' +
-                                            '<button onclick="createYouTubeBookmarklet()" class="btn-primary w-full text-sm py-2">' +
-                                            '<i class="fab fa-youtube mr-2"></i>Download YouTube Bookmarklet' +
-                                            '</button>' +
-                                            '</div>';
-                    
-                    tipsDiv.innerHTML += bookmarkletHtml;
-                }
-            }
-        }, 1000);
+    // Add global exit fullscreen listener
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            exitFullscreen();
+        }
     });
     </script>
 </body>

@@ -18,9 +18,6 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.static('public'));
 
-// Store YouTube Music sessions
-const youtubeSessions = new Map();
-
 // Routing
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -30,14 +27,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    activeRooms: Array.from(io.sockets.adapter.rooms.keys()).filter(room => !io.sockets.adapter.rooms.get(room)?.has(room)),
-    youtubeSessions: Array.from(youtubeSessions.entries()).map(([roomId, session]) => ({
-      roomId,
-      hostSocketId: session.hostSocketId,
-      playing: session.playing,
-      volume: session.volume,
-      currentTrack: session.currentTrack
-    }))
+    activeRooms: Array.from(io.sockets.adapter.rooms.keys()).filter(room => !io.sockets.adapter.rooms.get(room)?.has(room))
   });
 });
 
@@ -77,22 +67,6 @@ io.on('connection', (socket) => {
         userCount,
         users: otherClients 
       });
-      
-      // Send YouTube session info if exists
-      if (youtubeSessions.has(roomId)) {
-        socket.emit('youtube-session-info', youtubeSessions.get(roomId));
-        socket.emit('youtube-broadcast-status', {
-          roomId,
-          status: {
-            hostActive: true,
-            hostSocketId: youtubeSessions.get(roomId).hostSocketId,
-            hostName: youtubeSessions.get(roomId).hostName || 'Host',
-            playing: youtubeSessions.get(roomId).playing,
-            volume: youtubeSessions.get(roomId).volume,
-            currentTrack: youtubeSessions.get(roomId).currentTrack
-          }
-        });
-      }
       
     } catch (error) {
       console.error('❌ Error joining room:', error);
@@ -154,253 +128,6 @@ io.on('connection', (socket) => {
     }
   });
   
-  // YouTube Music: Register host
-  socket.on('register-youtube-host', (data) => {
-    const { roomId, hostSocketId, hostName } = data;
-    
-    youtubeSessions.set(roomId, {
-      hostSocketId: hostSocketId || socket.id,
-      hostName: hostName || 'Host',
-      playing: false,
-      currentTrack: null,
-      volume: 50,
-      lastActive: Date.now()
-    });
-    
-    // Notify all users in room
-    io.to(roomId).emit('youtube-session-info', youtubeSessions.get(roomId));
-    io.to(roomId).emit('youtube-broadcast-status', {
-      roomId,
-      status: {
-        hostActive: true,
-        hostSocketId: hostSocketId || socket.id,
-        hostName: hostName || 'Host',
-        playing: false,
-        volume: 50,
-        currentTrack: null
-      }
-    });
-    
-    console.log(`🎵 YouTube Music host registered for room ${roomId}: ${socket.id}`);
-  });
-  
-  // YouTube Music: Unregister host
-  socket.on('unregister-youtube-host', (roomId) => {
-    if (youtubeSessions.has(roomId)) {
-      youtubeSessions.delete(roomId);
-      io.to(roomId).emit('youtube-host-disconnected');
-      io.to(roomId).emit('youtube-broadcast-status', {
-        roomId,
-        status: {
-          hostActive: false,
-          playing: false,
-          volume: 50,
-          currentTrack: null
-        }
-      });
-      console.log(`🎵 YouTube Music host unregistered for room ${roomId}`);
-    }
-  });
-  
-  // YouTube Music: Check host status
-  socket.on('check-youtube-host', (roomId) => {
-    const hasHost = youtubeSessions.has(roomId);
-    
-    if (hasHost) {
-      const session = youtubeSessions.get(roomId);
-      socket.emit('youtube-host-check-response', {
-        hasHost: true,
-        hostSocketId: session.hostSocketId,
-        hostName: session.hostName,
-        playing: session.playing,
-        volume: session.volume,
-        currentTrack: session.currentTrack
-      });
-      
-      // Also send session info
-      socket.emit('youtube-session-info', session);
-      socket.emit('youtube-broadcast-status', {
-        roomId,
-        status: {
-          hostActive: true,
-          hostSocketId: session.hostSocketId,
-          hostName: session.hostName,
-          playing: session.playing,
-          volume: session.volume,
-          currentTrack: session.currentTrack
-        }
-      });
-    } else {
-      socket.emit('youtube-host-check-response', {
-        hasHost: false
-      });
-      socket.emit('youtube-broadcast-status', {
-        roomId,
-        status: {
-          hostActive: false,
-          playing: false,
-          volume: 50,
-          currentTrack: null
-        }
-      });
-    }
-    
-    console.log(`🎵 Host check for room ${roomId}: ${hasHost ? 'Has host' : 'No host'}`);
-  });
-  
-  // YouTube Music: Control commands
-  socket.on('youtube-music-control', (data) => {
-    const { roomId, action, value, from } = data;
-    
-    console.log(`🎵 YouTube Music control from ${from}:`, action, value);
-    
-    if (!youtubeSessions.has(roomId)) {
-      socket.emit('youtube-control-error', {
-        message: 'No active YouTube host in this room'
-      });
-      socket.emit('youtube-broadcast-status', {
-        roomId,
-        status: {
-          hostActive: false,
-          playing: false,
-          volume: 50,
-          currentTrack: null
-        }
-      });
-      return;
-    }
-    
-    const session = youtubeSessions.get(roomId);
-    
-    // Update session state
-    switch(action) {
-      case 'play':
-        session.playing = true;
-        break;
-      case 'pause':
-        session.playing = false;
-        break;
-      case 'volume':
-        session.volume = value;
-        break;
-      case 'playTrack':
-        session.currentTrack = value;
-        session.playing = true;
-        break;
-      case 'search':
-        session.currentTrack = value;
-        break;
-      case 'next':
-      case 'previous':
-        session.playing = true;
-        break;
-    }
-    
-    session.lastActive = Date.now();
-    
-    // Forward command to host
-    if (session.hostSocketId) {
-      io.to(session.hostSocketId).emit('youtube-music-command', {
-        action,
-        value,
-        from
-      });
-      
-      // Broadcast updated status to all users in room
-      io.to(roomId).emit('youtube-broadcast-status', {
-        roomId,
-        status: {
-          hostActive: true,
-          hostSocketId: session.hostSocketId,
-          hostName: session.hostName,
-          playing: session.playing,
-          volume: session.volume,
-          currentTrack: session.currentTrack
-        }
-      });
-      
-      // Send status update
-      io.to(roomId).emit('youtube-status-update', {
-        playing: session.playing,
-        volume: session.volume,
-        currentTrack: session.currentTrack
-      });
-      
-      console.log(`🎵 YouTube Music control forwarded to host ${session.hostSocketId}`);
-    }
-  });
-  
-  // YouTube Music: Broadcast status
-  socket.on('broadcast-youtube-status', (data) => {
-    const { roomId, status } = data;
-    
-    if (youtubeSessions.has(roomId)) {
-      // Update session
-      const session = youtubeSessions.get(roomId);
-      Object.assign(session, status);
-      session.lastActive = Date.now();
-      
-      // Broadcast to all users
-      io.to(roomId).emit('youtube-broadcast-status', {
-        roomId,
-        status: {
-          ...status,
-          hostActive: true
-        }
-      });
-      console.log(`🎵 Broadcast YouTube status to room ${roomId}`);
-    }
-  });
-  
-  // YouTube Music: Status update from host
-  socket.on('youtube-status-update', (status) => {
-    if (socket.roomId && youtubeSessions.has(socket.roomId)) {
-      const session = youtubeSessions.get(socket.roomId);
-      
-      // Update session
-      session.playing = status.playing;
-      session.volume = status.volume;
-      session.currentTrack = status.currentTrack;
-      session.lastActive = Date.now();
-      
-      // Broadcast to all users in room
-      io.to(socket.roomId).emit('youtube-status-update', status);
-      io.to(socket.roomId).emit('youtube-broadcast-status', {
-        roomId: socket.roomId,
-        status: {
-          hostActive: true,
-          hostSocketId: session.hostSocketId,
-          hostName: session.hostName,
-          playing: session.playing,
-          volume: session.volume,
-          currentTrack: session.currentTrack
-        }
-      });
-    }
-  });
-  
-  // Cleanup inactive sessions
-  setInterval(() => {
-    const now = Date.now();
-    for (const [roomId, session] of youtubeSessions.entries()) {
-      // Remove sessions inactive for 10 minutes
-      if (now - session.lastActive > 10 * 60 * 1000) {
-        youtubeSessions.delete(roomId);
-        io.to(roomId).emit('youtube-host-disconnected');
-        io.to(roomId).emit('youtube-broadcast-status', {
-          roomId,
-          status: {
-            hostActive: false,
-            playing: false,
-            volume: 50,
-            currentTrack: null
-          }
-        });
-        console.log(`🎵 Removed inactive YouTube session for room ${roomId}`);
-      }
-    }
-  }, 60000);
-  
   // Disconnect
   socket.on('disconnect', (reason) => {
     console.log(`❌ User disconnected: ${socket.id}, Reason: ${reason}`);
@@ -408,24 +135,6 @@ io.on('connection', (socket) => {
     // Cleanup room
     if (socket.roomId) {
       socket.to(socket.roomId).emit('user-disconnected', socket.id);
-    }
-    
-    // Cleanup YouTube sessions
-    for (let [roomId, session] of youtubeSessions.entries()) {
-      if (session.hostSocketId === socket.id) {
-        youtubeSessions.delete(roomId);
-        io.to(roomId).emit('youtube-host-disconnected');
-        io.to(roomId).emit('youtube-broadcast-status', {
-          roomId,
-          status: {
-            hostActive: false,
-            playing: false,
-            volume: 50,
-            currentTrack: null
-          }
-        });
-        console.log(`🎵 YouTube Music session cleaned up for room ${roomId}`);
-      }
     }
   });
   
@@ -445,12 +154,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   1. Buka di browser (Chrome/Edge disarankan)`);
   console.log(`   2. Buat atau gabung ruangan dengan ID yang sama`);
   console.log(`   3. Klik "Mulai Bagikan" untuk berbagi layar`);
-  console.log(`   4. Aktifkan YouTube Music Remote untuk kontrol bersama`);
-  console.log(`\n🎵 Fitur YouTube Music Remote:`);
-  console.log(`   • Host: Aktifkan switch YouTube Music`);
-  console.log(`   • User lain: Akses panel Music untuk kontrol`);
-  console.log(`   • Play/Pause, Volume, Next/Previous, Search`);
-  console.log(`   • Auto-reconnect setiap 5 detik\n`);
 });
 
 // Helper function to get local IP
