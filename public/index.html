@@ -25,12 +25,18 @@
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         video {
             width: 100%;
             height: 100%;
             object-fit: contain;
             display: block;
+            background: #000;
         }
         .status-indicator {
             width: 10px;
@@ -210,23 +216,28 @@
             }
         }
         
-        /* Responsive video containers */
+        /* Responsive video containers - UNIFORM STYLE */
         .video-container-mobile {
-            height: 200px;
+            height: 250px;
+            min-height: 250px;
+            width: 100%;
         }
         @media (min-width: 640px) {
             .video-container-mobile {
                 height: 300px;
+                min-height: 300px;
             }
         }
         @media (min-width: 768px) {
             .video-container-mobile {
                 height: 350px;
+                min-height: 350px;
             }
         }
         @media (min-width: 1024px) {
             .video-container-mobile {
                 height: 400px;
+                min-height: 400px;
             }
         }
         
@@ -266,23 +277,46 @@
             background: rgba(59, 130, 246, 0.8);
         }
         
-        /* Fullscreen styles */
-        :fullscreen .video-container-fullscreen,
-        :-webkit-full-screen .video-container-fullscreen,
-        :-moz-full-screen .video-container-fullscreen,
-        :-ms-fullscreen .video-container-fullscreen {
-            border-radius: 0;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 9999;
-            background: #000;
+        /* Perbaikan FULLSCREEN Styles */
+        .video-container.fullscreen-mode {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            background: #000 !important;
+            max-width: none !important;
+            max-height: none !important;
         }
         
-        .video-container-fullscreen video {
-            object-fit: contain;
+        .video-container.fullscreen-mode video {
+            object-fit: contain !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            width: auto !important;
+            height: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: auto !important;
+            background: #000 !important;
+        }
+        
+        /* Media query untuk aspect ratio berbeda */
+        @media (orientation: landscape) {
+            .video-container.fullscreen-mode video {
+                width: 100% !important;
+                height: auto !important;
+            }
+        }
+        
+        @media (orientation: portrait) {
+            .video-container.fullscreen-mode video {
+                width: auto !important;
+                height: 100% !important;
+            }
         }
         
         .fullscreen-btn {
@@ -315,7 +349,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.95);
             z-index: 9998;
             display: none;
         }
@@ -338,35 +372,16 @@
             cursor: pointer;
             z-index: 10000;
             display: none;
-        }
-        
-        .fullscreen-close-btn.active {
-            display: flex;
             align-items: center;
             justify-content: center;
         }
         
+        .fullscreen-close-btn.active {
+            display: flex;
+        }
+        
         .fullscreen-close-btn:hover {
             background: rgba(220, 38, 38, 0.9);
-        }
-        
-        .video-container.fullscreen-mode {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            z-index: 9999 !important;
-            border-radius: 0 !important;
-            background: #000 !important;
-        }
-        
-        .video-container.fullscreen-mode .fullscreen-btn {
-            display: none;
-        }
-        
-        .video-container.fullscreen-mode .fullscreen-close-btn {
-            display: flex !important;
         }
         
         input[type="range"]::-webkit-slider-thumb {
@@ -432,6 +447,73 @@
         .scrollbar-thin::-webkit-scrollbar-thumb {
             background: rgba(59, 130, 246, 0.5);
             border-radius: 2px;
+        }
+        
+        /* Video optimization for different screens */
+        .video-optimized {
+            max-width: 100%;
+            max-height: 100%;
+            margin: auto;
+            display: block;
+        }
+        
+        /* Aspect ratio helper classes */
+        .aspect-ratio-16-9 {
+            aspect-ratio: 16 / 9;
+        }
+        
+        .aspect-ratio-4-3 {
+            aspect-ratio: 4 / 3;
+        }
+        
+        /* Grid untuk video remote - SAMA dengan video lokal */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(1, 1fr);
+            gap: 16px;
+            width: 100%;
+        }
+        
+        @media (min-width: 768px) {
+            .video-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        /* Container khusus untuk video sharing - konsisten */
+        .sharing-video-container {
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            width: 100%;
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Styling untuk label user */
+        .user-label {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        
+        /* Animasi untuk live badge */
+        @keyframes livePulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        
+        .live-pulse {
+            animation: livePulse 2s infinite;
         }
     </style>
 </head>
@@ -644,7 +726,7 @@
                             <button 
                                 @click="stopScreenShare()"
                                 :disabled="!isSharing"
-                                class="btn-danger h-16 md:h-20 flex flex-col items-center justify-center py-2">
+                                class="btn-danger h-16 md:h-20 flex flex-col items-center justify-content py-2">
                                 <i class="fas fa-stop-circle text-xl md:text-2xl mb-1 md:mb-2"></i>
                                 <span class="text-xs md:text-sm">Berhenti</span>
                             </button>
@@ -685,78 +767,6 @@
                                     <span x-text="shareAudio ? 'Aktif' : 'Nonaktif'"></span>
                                 </span>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Informasi Teknis -->
-                <div class="glass-card rounded-2xl p-4 md:p-6 shadow-2xl">
-                    <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center">
-                        <i class="fas fa-info-circle mr-3 text-yellow-400"></i>
-                        Informasi & Tips
-                    </h2>
-                    
-                    <div class="space-y-3 md:space-y-4">
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
-                            <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
-                                <i class="fas fa-lightbulb mr-2 text-yellow-500"></i>
-                                Cara Menggunakan:
-                            </p>
-                            <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
-                                <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Buat atau masukkan ID ruangan</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Klik "Gabung Ruangan" di semua perangkat</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Di perangkat yang ingin berbagi, klik "Mulai Bagikan"</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Pilih layar atau jendela yang ingin dibagikan</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Klik tombol <i class="fas fa-expand ml-1 mr-1"></i> untuk mode fullscreen</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-check-circle text-green-500 mt-0.5 md:mt-1 mr-2 text-xs"></i>
-                                    <span>Lihat daftar ruangan aktif dan join dengan klik!</span>
-                                </li>
-                            </ul>
-                        </div>
-                        
-                        <div class="p-3 md:p-4 bg-gray-800 rounded-xl">
-                            <p class="font-semibold mb-2 flex items-center text-sm md:text-base">
-                                <i class="fas fa-exclamation-triangle mr-2 text-orange-500"></i>
-                                Catatan Penting:
-                            </p>
-                            <ul class="text-xs md:text-sm text-gray-400 space-y-2 ml-1">
-                                <li class="flex items-start">
-                                    <i class="fas fa-desktop mr-2 text-xs mt-0.5"></i>
-                                    <span>Gunakan Chrome/Edge untuk hasil terbaik</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-volume-off mr-2 text-xs mt-0.5"></i>
-                                    <span>Audio sistem hanya tersedia di Chrome</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-wifi mr-2 text-xs mt-0.5"></i>
-                                    <span>Pastikan koneksi internet stabil</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-expand mr-2 text-xs mt-0.5"></i>
-                                    <span>Tekan ESC atau tombol keluar untuk keluar fullscreen</span>
-                                </li>
-                                <li class="flex items-start">
-                                    <i class="fas fa-users mr-2 text-xs mt-0.5"></i>
-                                    <span>Lihat panel "Ruangan Aktif" untuk join tanpa mengetik ID</span>
-                                </li>
-                            </ul>
                         </div>
                     </div>
                 </div>
@@ -805,13 +815,13 @@
                                 <span x-text="shareAudio ? 'Audio: Aktif' : 'Audio: Nonaktif'"></span>
                             </div>
                         </div>
-                        <div class="video-container video-container-mobile" :class="{'fullscreen-mode': localVideoFullscreen}">
+                        <div class="sharing-video-container video-container-mobile" :class="{'fullscreen-mode': localVideoFullscreen}">
                             <video 
                                 x-ref="localVideo" 
                                 autoplay 
                                 muted 
                                 playsinline
-                                class="w-full h-full"></video>
+                                class="w-full h-full object-contain"></video>
                             <div class="absolute top-3 md:top-4 left-3 md:left-4">
                                 <div class="live-badge text-xs md:text-sm">
                                     <i class="fas fa-broadcast-tower mr-1"></i>
@@ -819,7 +829,7 @@
                                     <span class="sm:hidden">BERBAGI</span>
                                 </div>
                             </div>
-                            <div class="absolute bottom-3 md:bottom-4 left-3 md:left-4 bg-black bg-opacity-70 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm">
+                            <div class="absolute bottom-3 md:bottom-4 left-3 md:left-4 user-label">
                                 <i class="fas fa-user mr-1 md:mr-2"></i>
                                 <span>Anda</span>
                             </div>
@@ -838,7 +848,7 @@
                         <div class="flex items-center justify-between mb-3 md:mb-4">
                             <h3 class="text-base md:text-lg font-semibold flex items-center">
                                 <i class="fas fa-users mr-2 text-green-400"></i>
-                                Pengguna Lain
+                                Pengguna Lain yang Berbagi
                                 <span class="ml-2 px-2 py-0.5 md:px-2 md:py-1 bg-blue-900 rounded-full text-xs md:text-sm" 
                                       x-text="remoteVideos.length"></span>
                             </h3>
@@ -852,7 +862,7 @@
                             </button>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6" id="remoteVideosContainer">
+                        <div class="w-full h-full object-contain" id="remoteVideosContainer">
                             <!-- Remote videos akan dimasukkan di sini -->
                         </div>
                     </div>
@@ -1036,6 +1046,16 @@ Socket ID: ${appState.socketId}
         if (e.key === 'Escape') {
             exitFullscreen();
         }
+    });
+    
+    // Handle screen orientation changes
+    window.addEventListener('orientationchange', function() {
+        setTimeout(() => {
+            const appState = Alpine.$data(document.querySelector('[x-data]'));
+            if (appState && appState.handleFullscreenResize) {
+                appState.handleFullscreenResize();
+            }
+        }, 300);
     });
     </script>
 </body>

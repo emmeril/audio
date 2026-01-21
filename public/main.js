@@ -61,6 +61,10 @@ function app() {
             
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 1024;
+                // Adjust fullscreen video on resize
+                if (this.isFullscreenMode) {
+                    this.handleFullscreenResize();
+                }
             });
             
             // Cegah zoom pada input di iOS
@@ -104,6 +108,7 @@ function app() {
             this.isFullscreenMode = !!isFullscreen;
             
             if (!isFullscreen) {
+                // Reset semua state fullscreen
                 this.localVideoFullscreen = false;
                 this.remoteVideoFullscreen = false;
                 this.currentFullscreenVideo = null;
@@ -112,7 +117,60 @@ function app() {
                 const closeBtn = document.getElementById('fullscreenCloseBtn');
                 if (backdrop) backdrop.classList.remove('active');
                 if (closeBtn) closeBtn.classList.remove('active');
+                
+                // Reset semua video container
+                document.querySelectorAll('.sharing-video-container.fullscreen-mode').forEach(el => {
+                    el.classList.remove('fullscreen-mode');
+                    
+                    // Reset video styles
+                    const video = el.querySelector('video');
+                    if (video) {
+                        this.resetVideoStyles(video);
+                    }
+                });
+                
+                // Remove resize listener
+                window.removeEventListener('resize', this.handleFullscreenResize.bind(this));
+            } else {
+                // Adjust video saat masuk fullscreen
+                const fullscreenElement = isFullscreen;
+                if (fullscreenElement.classList.contains('sharing-video-container')) {
+                    setTimeout(() => {
+                        this.adjustVideoForFullscreen(fullscreenElement);
+                    }, 100);
+                }
+                
+                // Add resize listener
+                window.addEventListener('resize', this.handleFullscreenResize.bind(this));
             }
+        },
+        
+        // Handle resize saat fullscreen
+        handleFullscreenResize() {
+            if (!this.isFullscreenMode) return;
+            
+            const fullscreenElements = document.querySelectorAll('.sharing-video-container.fullscreen-mode');
+            fullscreenElements.forEach(element => {
+                this.adjustVideoForFullscreen(element);
+            });
+        },
+        
+        // Reset video styles
+        resetVideoStyles(video) {
+            video.style.width = '';
+            video.style.height = '';
+            video.style.maxWidth = '';
+            video.style.maxHeight = '';
+            video.style.objectFit = '';
+            video.style.margin = '';
+            video.style.display = '';
+            video.style.alignItems = '';
+            video.style.justifyContent = '';
+            video.style.backgroundColor = '';
+            video.style.position = '';
+            video.style.top = '';
+            video.style.left = '';
+            video.style.transform = '';
         },
         
         // Toggle fullscreen untuk video tertentu
@@ -122,12 +180,29 @@ function app() {
             } else if (videoType.startsWith('remote-')) {
                 const userId = videoType.replace('remote-', '');
                 this.toggleRemoteVideoFullscreen(userId);
+            } else {
+                // Cari video container yang sesuai
+                let container;
+                if (videoType === 'local') {
+                    container = this.$refs.localVideo?.closest('.sharing-video-container');
+                } else {
+                    const videoId = `remoteVideo-${videoType.replace('remote-', '')}`;
+                    container = document.getElementById(videoId)?.closest('.sharing-video-container');
+                }
+                
+                if (container) {
+                    if (container.classList.contains('fullscreen-mode')) {
+                        this.exitFullscreen();
+                    } else {
+                        this.enterFullscreen(container, videoType);
+                    }
+                }
             }
         },
         
         // Toggle fullscreen untuk video lokal
         toggleLocalVideoFullscreen() {
-            const videoContainer = document.querySelector('.video-container video')?.closest('.video-container');
+            const videoContainer = this.$refs.localVideo?.closest('.sharing-video-container');
             if (!videoContainer) return;
             
             if (!this.localVideoFullscreen) {
@@ -146,15 +221,15 @@ function app() {
             const videoElement = document.getElementById(videoId);
             if (!videoElement) return;
             
-            const videoContainer = videoElement.closest('.video-container');
+            const videoContainer = videoElement.closest('.sharing-video-container');
             if (!videoContainer) return;
             
-            if (!this.remoteVideoFullscreen) {
+            if (!this.remoteVideoFullscreen || this.currentFullscreenVideo !== userId) {
                 this.enterFullscreen(videoContainer, `remote-${userId}`);
                 this.remoteVideoFullscreen = true;
                 this.currentFullscreenVideo = userId;
                 this.showNotification(`Video pengguna ${userId.substring(0, 6)} masuk mode fullscreen`, 'info');
-            } else if (this.currentFullscreenVideo === userId) {
+            } else {
                 this.exitFullscreen();
                 this.remoteVideoFullscreen = false;
                 this.currentFullscreenVideo = null;
@@ -200,6 +275,13 @@ function app() {
             
             element.classList.add('fullscreen-mode');
             
+            // Simpan aspect ratio original
+            const video = element.querySelector('video');
+            if (video) {
+                video.dataset.originalAspectRatio = video.videoWidth / video.videoHeight;
+            }
+            
+            // Apply fullscreen
             if (element.requestFullscreen) {
                 element.requestFullscreen();
             } else if (element.webkitRequestFullscreen) {
@@ -209,9 +291,65 @@ function app() {
             } else if (element.msRequestFullscreen) {
                 element.msRequestFullscreen();
             } else {
+                // Fallback: gunakan fullscreen custom
                 this.isFullscreenMode = true;
                 this.currentFullscreenVideo = videoType;
+                
+                // Adjust video untuk fullscreen
+                setTimeout(() => {
+                    this.adjustVideoForFullscreen(element);
+                }, 100);
             }
+            
+            // Add resize listener untuk menyesuaikan ukuran video
+            window.addEventListener('resize', this.handleFullscreenResize.bind(this));
+        },
+        
+        // Menyesuaikan video untuk fullscreen berdasarkan aspect ratio
+        adjustVideoForFullscreen(element) {
+            const video = element.querySelector('video');
+            if (!video) return;
+            
+            const containerWidth = element.clientWidth || window.innerWidth;
+            const containerHeight = element.clientHeight || window.innerHeight;
+            
+            // Reset styles terlebih dahulu
+            this.resetVideoStyles(video);
+            
+            // Atur video agar mengisi container dengan aspect ratio yang benar
+            video.style.objectFit = 'contain';
+            video.style.backgroundColor = '#000';
+            video.style.display = 'block';
+            video.style.margin = 'auto';
+            
+            // Jika video sudah memiliki dimensi metadata
+            if (video.videoWidth && video.videoHeight) {
+                const videoAspectRatio = video.videoWidth / video.videoHeight;
+                const containerAspectRatio = containerWidth / containerHeight;
+                
+                if (videoAspectRatio > containerAspectRatio) {
+                    // Video lebih lebar dari container
+                    video.style.width = '100%';
+                    video.style.height = 'auto';
+                    video.style.maxHeight = '100%';
+                } else {
+                    // Video lebih tinggi dari container
+                    video.style.width = 'auto';
+                    video.style.height = '100%';
+                    video.style.maxWidth = '100%';
+                }
+            } else {
+                // Fallback jika metadata belum tersedia
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'contain';
+            }
+            
+            // Center the video
+            video.style.position = 'absolute';
+            video.style.top = '50%';
+            video.style.left = '50%';
+            video.style.transform = 'translate(-50%, -50%)';
         },
         
         // Keluar dari mode fullscreen
@@ -221,10 +359,18 @@ function app() {
             if (backdrop) backdrop.classList.remove('active');
             if (closeBtn) closeBtn.classList.remove('active');
             
-            document.querySelectorAll('.video-container.fullscreen-mode').forEach(el => {
+            // Reset semua video container
+            document.querySelectorAll('.sharing-video-container.fullscreen-mode').forEach(el => {
                 el.classList.remove('fullscreen-mode');
+                
+                // Reset video styles
+                const video = el.querySelector('video');
+                if (video) {
+                    this.resetVideoStyles(video);
+                }
             });
             
+            // Exit fullscreen API
             if (document.exitFullscreen) {
                 document.exitFullscreen();
             } else if (document.webkitExitFullscreen) {
@@ -239,6 +385,9 @@ function app() {
             this.localVideoFullscreen = false;
             this.remoteVideoFullscreen = false;
             this.currentFullscreenVideo = null;
+            
+            // Remove resize listener
+            window.removeEventListener('resize', this.handleFullscreenResize.bind(this));
         },
         
         // Generate Room ID
@@ -306,7 +455,7 @@ function app() {
                 this.isConnected = true;
                 this.socketId = this.socket.id;
                 this.showNotification('Terhubung ke server', 'success');
-                console.log('✅ Socket connected:', this.socketId);
+                // console.log('✅ Socket connected:', this.socketId);
                 
                 // Minta daftar ruangan aktif
                 this.socket.emit('get-active-rooms');
@@ -315,7 +464,7 @@ function app() {
             this.socket.on('disconnect', () => {
                 this.isConnected = false;
                 this.showNotification('Terputus dari server', 'error');
-                console.log('❌ Socket disconnected');
+                // console.log('❌ Socket disconnected');
             });
             
             this.socket.on('connect_error', (error) => {
@@ -326,7 +475,7 @@ function app() {
             this.socket.on('room-joined', (data) => {
                 this.usersInRoom = data.userCount;
                 this.showNotification(`Bergabung ke ruangan ${data.roomId}`, 'success');
-                console.log(`🚪 Joined room: ${data.roomId}, users: ${data.userCount}`);
+                // console.log(`🚪 Joined room: ${data.roomId}, users: ${data.userCount}`);
                 
                 if (window.innerWidth < 1024) {
                     this.mobileMenuActive = 'video';
@@ -340,7 +489,7 @@ function app() {
             this.socket.on('user-connected', (userId) => {
                 this.usersInRoom++;
                 this.showNotification('Pengguna baru bergabung', 'info');
-                console.log(`👤 User connected: ${userId}`);
+                // console.log(`👤 User connected: ${userId}`);
                 this.createPeerConnection(userId, true);
             });
             
@@ -348,7 +497,7 @@ function app() {
                 this.usersInRoom--;
                 this.closePeerConnection(userId);
                 this.showNotification('Pengguna keluar dari ruangan', 'info');
-                console.log(`👤 User disconnected: ${userId}`);
+                // console.log(`👤 User disconnected: ${userId}`);
             });
             
             // LISTENER BARU: Daftar ruangan aktif
@@ -363,7 +512,7 @@ function app() {
                         return b.userCount - a.userCount;
                     });
                 
-                console.log('📋 Active rooms updated:', this.activeRooms);
+                // console.log('📋 Active rooms updated:', this.activeRooms);
             });
             
             this.socket.on('offer', async (data) => {
@@ -394,7 +543,7 @@ function app() {
                 this.isInRoom = true;
                 this.showActiveRooms = false; // Tutup panel saat join
                 this.showNotification(`Bergabung ke ruangan ${this.roomId}`, 'success');
-                console.log(`🚪 Joining room: ${this.roomId}`);
+                // console.log(`🚪 Joining room: ${this.roomId}`);
             }
         },
         
@@ -412,7 +561,7 @@ function app() {
                 this.usersInRoom = 1;
                 this.remoteVideos = [];
                 this.showNotification('Keluar dari ruangan', 'info');
-                console.log('🚪 Left room');
+                // console.log('🚪 Left room');
             }
         },
         
@@ -466,7 +615,7 @@ function app() {
                         });
                         
                         const settings = audioTrack.getSettings();
-                        console.log('🎵 Audio settings:', settings);
+                        // console.log('🎵 Audio settings:', settings);
                         
                     } catch (constraintError) {
                         console.warn('⚠️ Tidak bisa apply constraints audio:', constraintError);
@@ -618,7 +767,7 @@ function app() {
             // Connection State handler
             peerConnection.onconnectionstatechange = () => {
                 if (peerConnection.connectionState === 'connected') {
-                    console.log(`✅ Connected to ${userId}`);
+                    // console.log(`✅ Connected to ${userId}`);
                 }
             };
             
@@ -780,7 +929,7 @@ function app() {
             this.updateRemoteVideoElements();
         },
         
-        // Update elemen video remote di DOM
+        // PERBAIKAN: Update elemen video remote di DOM - SAMA dengan video lokal
         updateRemoteVideoElements() {
             const container = document.getElementById('remoteVideosContainer');
             if (!container) return;
@@ -797,33 +946,54 @@ function app() {
                     videoElement.id = videoId;
                     videoElement.autoplay = true;
                     videoElement.playsInline = true;
-                    videoElement.className = 'w-full h-full object-cover';
+                    videoElement.className = 'w-full h-full object-contain';
                     videoElement.volume = 1.0;
+                    
+                    // Add metadata listener untuk aspect ratio
+                    videoElement.addEventListener('loadedmetadata', () => {
+                        if (this.isFullscreenMode) {
+                            const container = videoElement.closest('.sharing-video-container.fullscreen-mode');
+                            if (container) {
+                                this.adjustVideoForFullscreen(container);
+                            }
+                        }
+                    });
                 }
                 
                 if (videoElement.srcObject !== videoData.stream) {
                     videoElement.srcObject = videoData.stream;
                 }
                 
+                // Buat container yang SAMA dengan video lokal
                 const videoWrapper = document.createElement('div');
-                videoWrapper.className = 'video-container h-48 md:h-64 lg:h-80';
+                videoWrapper.className = 'sharing-video-container video-container-mobile';
                 
-                const userLabel = document.createElement('div');
-                userLabel.className = 'absolute bottom-3 left-3 md:bottom-4 md:left-4 bg-black bg-opacity-70 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-xs md:text-sm';
-                userLabel.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i>User ${videoData.userId.substring(0, 6)}`;
-                
+                // Live badge - SAMA dengan video lokal
                 const liveBadge = document.createElement('div');
-                liveBadge.className = 'live-badge absolute top-3 left-3 md:top-4 md:left-4 text-xs md:text-sm';
-                liveBadge.innerHTML = '<i class="fas fa-circle animate-pulse"></i> LIVE';
+                liveBadge.className = 'absolute top-3 md:top-4 left-3 md:left-4';
+                liveBadge.innerHTML = `
+                    <div class="live-badge text-xs md:text-sm">
+                        <i class="fas fa-broadcast-tower mr-1"></i>
+                        <span class="hidden sm:inline">SEDANG BERBAGI</span>
+                        <span class="sm:hidden">BERBAGI</span>
+                    </div>
+                `;
                 
+                // User label - SAMA dengan video lokal
+                const userLabel = document.createElement('div');
+                userLabel.className = 'absolute bottom-3 md:bottom-4 left-3 md:left-4 user-label';
+                userLabel.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i>User ${videoData.userId.substring(0, 8)}`;
+                
+                // Tombol fullscreen - SAMA dengan video lokal
                 const fullscreenBtn = document.createElement('button');
                 fullscreenBtn.className = 'fullscreen-btn absolute top-3 right-3 md:top-4 md:right-4';
                 fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
                 fullscreenBtn.onclick = () => this.toggleFullscreen(`remote-${videoData.userId}`);
                 
+                // Tambahkan semua elemen ke container
                 videoWrapper.appendChild(videoElement);
-                videoWrapper.appendChild(userLabel);
                 videoWrapper.appendChild(liveBadge);
+                videoWrapper.appendChild(userLabel);
                 videoWrapper.appendChild(fullscreenBtn);
                 container.appendChild(videoWrapper);
             });
