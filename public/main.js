@@ -21,24 +21,126 @@ function app() {
         isFullscreenMode: false,
         currentFullscreenVideo: null,
         
+        // State koneksi
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 10,
+        isReconnecting: false,
+        lastPingTime: 0,
+        latency: 0,
+        connectionStats: {
+            totalDisconnects: 0,
+            lastDisconnectTime: null,
+            successfulReconnects: 0
+        },
+        
         // Objek WebRTC
         socket: null,
         localStream: null,
         peerConnections: {},
         
-        // Konfigurasi WebRTC dengan audio stabil
-        configuration: {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
-            ],
-            encodedInsertableStreams: false,
-            forceEncodedAudioInsertableStreams: false,
-            forceEncodedVideoInsertableStreams: false
-        },
+        // Konfigurasi WebRTC yang lebih stabil
+configuration: {
+    iceServers: [
+        // Default STUN servers
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.services.mozilla.com:3478' },
+        { urls: 'stun:stun.stunprotocol.org:3478' },
+        
+        // Additional STUN servers from the provided list
+        { urls: 'stun:stun.nextcloud.com:443' },
+        { urls: 'stun:stun.bethesda.net:3478' },
+        { urls: 'stun:stun.kanojo.de:3478' },
+        { urls: 'stun:stun.mixvoip.com:3478' },
+        { urls: 'stun:stun.pure-ip.com:3478' },
+        { urls: 'stun:stun.signalwire.com:3478' },
+        { urls: 'stun:stun.voztovoice.org:3478' },
+        { urls: 'stun:stun.axialys.net:3478' },
+        { urls: 'stun:stun.healthtap.com:3478' },
+        { urls: 'stun:stun.voipgate.com:3478' },
+        { urls: 'stun:stun.thinkrosystem.com:3478' },
+        { urls: 'stun:stun.siplogin.de:3478' },
+        { urls: 'stun:stun.skydrone.aero:3478' },
+        { urls: 'stun:stun.godatenow.com:3478' },
+        { urls: 'stun:stun.voipia.net:3478' },
+        { urls: 'stun:stun.verbo.be:3478' },
+        { urls: 'stun:stun.romaaeterna.nl:3478' },
+        { urls: 'stun:stun.tula.nu:3478' },
+        { urls: 'stun:stun.siptrunk.com:3478' },
+        { urls: 'stun:stun.romancecompass.com:3478' },
+        { urls: 'stun:stun.linuxtrent.it:3478' },
+        { urls: 'stun:stun.engineeredarts.co.uk:3478' },
+        { urls: 'stun:stun.lovense.com:3478' },
+        { urls: 'stun:stun.alpirsbacher.de:3478' },
+        { urls: 'stun:stun.myspeciality.com:3478' },
+        { urls: 'stun:stun.genymotion.com:3478' },
+        { urls: 'stun:stun.oncloud7.ch:3478' },
+        { urls: 'stun:stun.annatel.net:3478' },
+        { urls: 'stun:stun.uabrides.com:3478' },
+        { urls: 'stun:stun.technosens.fr:3478' },
+        { urls: 'stun:stun.files.fm:3478' },
+        { urls: 'stun:stun.sip.us:3478' },
+        { urls: 'stun:stun.framasoft.org:3478' },
+        { urls: 'stun:stun.fitauto.ru:3478' },
+        { urls: 'stun:stun.frozenmountain.com:3478' },
+        { urls: 'stun:stun.bridesbay.com:3478' },
+        { urls: 'stun:stun.business-isp.nl:3478' },
+        { urls: 'stun:stun.telnyx.com:3478' },
+        { urls: 'stun:stun.f.haeder.net:3478' },
+        { urls: 'stun:stun.baltmannsweiler.de:3478' },
+        { urls: 'stun:stun.ncic.com:3478' },
+        { urls: 'stun:stun.cellmail.com:3478' },
+        { urls: 'stun:stun.vavadating.com:3478' },
+        { urls: 'stun:stun.zentauron.de:3478' },
+        { urls: 'stun:stun.antisip.com:3478' },
+        { urls: 'stun:stun.ru-brides.com:3478' },
+        { urls: 'stun:stun.voip.blackberry.com:3478' },
+        { urls: 'stun:stun.ipfire.org:3478' },
+        { urls: 'stun:stun.nextcloud.com:3478' },
+        { urls: 'stun:stun.root-1.de:3478' },
+        { urls: 'stun:stun.yesdates.com:3478' },
+        { urls: 'stun:stun.freeswitch.org:3478' },
+        { urls: 'stun:stun.geesthacht.de:3478' },
+        { urls: 'stun:stun.acronis.com:3478' },
+        { urls: 'stun:stun.poetamatusel.org:3478' },
+        { urls: 'stun:stun.bcs2005.net:3478' },
+        { urls: 'stun:stun.ringostat.com:3478' },
+        { urls: 'stun:stun.flashdance.cx:3478' },
+        { urls: 'stun:stun.3deluxe.de:3478' },
+        { urls: 'stun:stun.m-online.net:3478' },
+        { urls: 'stun:stun.stochastix.de:3478' },
+        { urls: 'stun:stun.finsterwalder.com:3478' },
+        { urls: 'stun:stun.radiojar.com:3478' },
+        { urls: 'stun:stun.sonetel.net:3478' },
+        { urls: 'stun:stun.fmo.de:3478' },
+        { urls: 'stun:stun.graftlab.com:3478' },
+        { urls: 'stun:stun.sonetel.com:3478' },
+        { urls: 'stun:stun.hot-chilli.net:3478' },
+        { urls: 'stun:stun.sipthor.net:3478' },
+        { urls: 'stun:stun.moonlight-stream.org:3478' },
+        { urls: 'stun:stun.bitburger.de:3478' },
+        { urls: 'stun:stun.peethultra.be:3478' },
+        { urls: 'stun:stun.atagverwarming.nl:3478' },
+        { urls: 'stun:stun.telviva.com:3478' },
+        { urls: 'stun:stun.ukh.de:3478' },
+        { urls: 'stun:stun.threema.ch:3478' },
+        { urls: 'stun:stun.vomessen.de:3478' },
+        { urls: 'stun:stun.cope.es:3478' },
+        { urls: 'stun:stun.diallog.com:3478' },
+        { urls: 'stun:stun.ttmath.org:3478' },
+        { urls: 'stun:stun.meetwife.com:3478' },
+        { urls: 'stun:stun.kaseya.com:3478' }
+    ],
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all',
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require',
+    sdpSemantics: 'unified-plan',
+    encodedInsertableStreams: false
+},
         
         // Inisialisasi
         init() {
@@ -46,13 +148,14 @@ function app() {
             this.initializeSocket();
             this.setupMobileFeatures();
             this.setupFullscreenListeners();
+            this.startConnectionMonitor();
             
-            // Minta daftar ruangan aktif setiap 10 detik
+            // Minta daftar ruangan aktif setiap 15 detik
             setInterval(() => {
                 if (this.socket && this.isConnected) {
                     this.socket.emit('get-active-rooms');
                 }
-            }, 10000);
+            }, 15000);
         },
         
         // Setup fitur mobile
@@ -61,7 +164,6 @@ function app() {
             
             window.addEventListener('resize', () => {
                 this.isMobile = window.innerWidth < 1024;
-                // Adjust fullscreen video on resize
                 if (this.isFullscreenMode) {
                     this.handleFullscreenResize();
                 }
@@ -90,12 +192,6 @@ function app() {
             document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange.bind(this));
             document.addEventListener('mozfullscreenchange', this.handleFullscreenChange.bind(this));
             document.addEventListener('MSFullscreenChange', this.handleFullscreenChange.bind(this));
-            
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.isFullscreenMode) {
-                    this.exitFullscreen();
-                }
-            });
         },
         
         // Handle perubahan state fullscreen
@@ -108,7 +204,6 @@ function app() {
             this.isFullscreenMode = !!isFullscreen;
             
             if (!isFullscreen) {
-                // Reset semua state fullscreen
                 this.localVideoFullscreen = false;
                 this.remoteVideoFullscreen = false;
                 this.currentFullscreenVideo = null;
@@ -118,29 +213,20 @@ function app() {
                 if (backdrop) backdrop.classList.remove('active');
                 if (closeBtn) closeBtn.classList.remove('active');
                 
-                // Reset semua video container
                 document.querySelectorAll('.sharing-video-container.fullscreen-mode').forEach(el => {
                     el.classList.remove('fullscreen-mode');
-                    
-                    // Reset video styles
                     const video = el.querySelector('video');
-                    if (video) {
-                        this.resetVideoStyles(video);
-                    }
+                    if (video) this.resetVideoStyles(video);
                 });
                 
-                // Remove resize listener
                 window.removeEventListener('resize', this.handleFullscreenResize.bind(this));
             } else {
-                // Adjust video saat masuk fullscreen
                 const fullscreenElement = isFullscreen;
                 if (fullscreenElement.classList.contains('sharing-video-container')) {
                     setTimeout(() => {
                         this.adjustVideoForFullscreen(fullscreenElement);
                     }, 100);
                 }
-                
-                // Add resize listener
                 window.addEventListener('resize', this.handleFullscreenResize.bind(this));
             }
         },
@@ -149,28 +235,15 @@ function app() {
         handleFullscreenResize() {
             if (!this.isFullscreenMode) return;
             
-            const fullscreenElements = document.querySelectorAll('.sharing-video-container.fullscreen-mode');
-            fullscreenElements.forEach(element => {
+            document.querySelectorAll('.sharing-video-container.fullscreen-mode').forEach(element => {
                 this.adjustVideoForFullscreen(element);
             });
         },
         
         // Reset video styles
         resetVideoStyles(video) {
-            video.style.width = '';
-            video.style.height = '';
-            video.style.maxWidth = '';
-            video.style.maxHeight = '';
-            video.style.objectFit = '';
-            video.style.margin = '';
-            video.style.display = '';
-            video.style.alignItems = '';
-            video.style.justifyContent = '';
-            video.style.backgroundColor = '';
-            video.style.position = '';
-            video.style.top = '';
-            video.style.left = '';
-            video.style.transform = '';
+            video.style.cssText = '';
+            video.className = 'w-full h-full object-contain';
         },
         
         // Toggle fullscreen untuk video tertentu
@@ -180,23 +253,6 @@ function app() {
             } else if (videoType.startsWith('remote-')) {
                 const userId = videoType.replace('remote-', '');
                 this.toggleRemoteVideoFullscreen(userId);
-            } else {
-                // Cari video container yang sesuai
-                let container;
-                if (videoType === 'local') {
-                    container = this.$refs.localVideo?.closest('.sharing-video-container');
-                } else {
-                    const videoId = `remoteVideo-${videoType.replace('remote-', '')}`;
-                    container = document.getElementById(videoId)?.closest('.sharing-video-container');
-                }
-                
-                if (container) {
-                    if (container.classList.contains('fullscreen-mode')) {
-                        this.exitFullscreen();
-                    } else {
-                        this.enterFullscreen(container, videoType);
-                    }
-                }
             }
         },
         
@@ -275,13 +331,6 @@ function app() {
             
             element.classList.add('fullscreen-mode');
             
-            // Simpan aspect ratio original
-            const video = element.querySelector('video');
-            if (video) {
-                video.dataset.originalAspectRatio = video.videoWidth / video.videoHeight;
-            }
-            
-            // Apply fullscreen
             if (element.requestFullscreen) {
                 element.requestFullscreen();
             } else if (element.webkitRequestFullscreen) {
@@ -291,21 +340,17 @@ function app() {
             } else if (element.msRequestFullscreen) {
                 element.msRequestFullscreen();
             } else {
-                // Fallback: gunakan fullscreen custom
                 this.isFullscreenMode = true;
                 this.currentFullscreenVideo = videoType;
-                
-                // Adjust video untuk fullscreen
                 setTimeout(() => {
                     this.adjustVideoForFullscreen(element);
                 }, 100);
             }
             
-            // Add resize listener untuk menyesuaikan ukuran video
             window.addEventListener('resize', this.handleFullscreenResize.bind(this));
         },
         
-        // Menyesuaikan video untuk fullscreen berdasarkan aspect ratio
+        // Menyesuaikan video untuk fullscreen
         adjustVideoForFullscreen(element) {
             const video = element.querySelector('video');
             if (!video) return;
@@ -313,39 +358,32 @@ function app() {
             const containerWidth = element.clientWidth || window.innerWidth;
             const containerHeight = element.clientHeight || window.innerHeight;
             
-            // Reset styles terlebih dahulu
             this.resetVideoStyles(video);
             
-            // Atur video agar mengisi container dengan aspect ratio yang benar
             video.style.objectFit = 'contain';
             video.style.backgroundColor = '#000';
             video.style.display = 'block';
             video.style.margin = 'auto';
             
-            // Jika video sudah memiliki dimensi metadata
             if (video.videoWidth && video.videoHeight) {
                 const videoAspectRatio = video.videoWidth / video.videoHeight;
                 const containerAspectRatio = containerWidth / containerHeight;
                 
                 if (videoAspectRatio > containerAspectRatio) {
-                    // Video lebih lebar dari container
                     video.style.width = '100%';
                     video.style.height = 'auto';
                     video.style.maxHeight = '100%';
                 } else {
-                    // Video lebih tinggi dari container
                     video.style.width = 'auto';
                     video.style.height = '100%';
                     video.style.maxWidth = '100%';
                 }
             } else {
-                // Fallback jika metadata belum tersedia
                 video.style.width = '100%';
                 video.style.height = '100%';
                 video.style.objectFit = 'contain';
             }
             
-            // Center the video
             video.style.position = 'absolute';
             video.style.top = '50%';
             video.style.left = '50%';
@@ -359,18 +397,12 @@ function app() {
             if (backdrop) backdrop.classList.remove('active');
             if (closeBtn) closeBtn.classList.remove('active');
             
-            // Reset semua video container
             document.querySelectorAll('.sharing-video-container.fullscreen-mode').forEach(el => {
                 el.classList.remove('fullscreen-mode');
-                
-                // Reset video styles
                 const video = el.querySelector('video');
-                if (video) {
-                    this.resetVideoStyles(video);
-                }
+                if (video) this.resetVideoStyles(video);
             });
             
-            // Exit fullscreen API
             if (document.exitFullscreen) {
                 document.exitFullscreen();
             } else if (document.webkitExitFullscreen) {
@@ -386,7 +418,6 @@ function app() {
             this.remoteVideoFullscreen = false;
             this.currentFullscreenVideo = null;
             
-            // Remove resize listener
             window.removeEventListener('resize', this.handleFullscreenResize.bind(this));
         },
         
@@ -408,9 +439,11 @@ function app() {
             if (this.isInRoom) {
                 if (confirm(`Anda sudah berada di ruangan ${this.roomId}. Pindah ke ruangan ${roomId}?`)) {
                     this.leaveRoom();
-                    this.roomId = roomId;
-                    this.joinRoom();
-                    this.showActiveRooms = false;
+                    setTimeout(() => {
+                        this.roomId = roomId;
+                        this.joinRoom();
+                        this.showActiveRooms = false;
+                    }, 500);
                 }
             } else {
                 this.roomId = roomId;
@@ -442,40 +475,84 @@ function app() {
             }
         },
         
-        // Inisialisasi Socket.io
+        // Inisialisasi Socket.io dengan reconnection yang lebih baik
         initializeSocket() {
             this.socket = io(window.location.origin, {
                 reconnection: true,
-                reconnectionAttempts: 10,
+                reconnectionAttempts: Infinity,
                 reconnectionDelay: 1000,
-                timeout: 20000
+                reconnectionDelayMax: 5000,
+                timeout: 20000,
+                transports: ['websocket', 'polling'],
+                forceNew: true,
+                randomizationFactor: 0.5
             });
             
             this.socket.on('connect', () => {
                 this.isConnected = true;
                 this.socketId = this.socket.id;
+                this.reconnectAttempts = 0;
+                this.isReconnecting = false;
                 this.showNotification('Terhubung ke server', 'success');
-                // console.log('✅ Socket connected:', this.socketId);
                 
                 // Minta daftar ruangan aktif
                 this.socket.emit('get-active-rooms');
+                
+                // Rejoin room jika sebelumnya sudah join
+                if (this.roomId && this.isInRoom) {
+                    setTimeout(() => {
+                        this.socket.emit('join-room', this.roomId);
+                    }, 1000);
+                }
             });
             
-            this.socket.on('disconnect', () => {
+            this.socket.on('disconnect', (reason) => {
                 this.isConnected = false;
-                this.showNotification('Terputus dari server', 'error');
-                // console.log('❌ Socket disconnected');
+                this.connectionStats.totalDisconnects++;
+                this.connectionStats.lastDisconnectTime = Date.now();
+                
+                if (reason === 'io server disconnect' || reason === 'transport close') {
+                    this.showNotification('Terputus dari server. Mencoba menyambung kembali...', 'error');
+                    this.socket.connect();
+                }
             });
             
             this.socket.on('connect_error', (error) => {
                 console.error('⚠️ Koneksi error:', error);
-                this.showNotification('Gagal terhubung ke server', 'error');
+                this.isReconnecting = true;
+                this.reconnectAttempts++;
+                
+                if (this.reconnectAttempts > 5) {
+                    this.showNotification('Gagal terhubung ke server. Silakan refresh halaman.', 'error');
+                } else {
+                    this.showNotification(`Menyambung kembali... (${this.reconnectAttempts})`, 'warning');
+                }
+            });
+            
+            this.socket.on('reconnect', (attemptNumber) => {
+                this.isConnected = true;
+                this.isReconnecting = false;
+                this.connectionStats.successfulReconnects++;
+                this.showNotification(`Koneksi dipulihkan setelah ${attemptNumber} percobaan`, 'success');
+            });
+            
+            this.socket.on('reconnect_attempt', (attemptNumber) => {
+                console.log(`🔄 Reconnection attempt ${attemptNumber}`);
+            });
+            
+            this.socket.on('reconnect_failed', () => {
+                this.showNotification('Gagal menyambung kembali. Silakan refresh halaman.', 'error');
+            });
+            
+            this.socket.on('pong', (data) => {
+                this.latency = Date.now() - data.clientTime;
+                this.lastPingTime = Date.now();
             });
             
             this.socket.on('room-joined', (data) => {
+                this.isInRoom = true;
                 this.usersInRoom = data.userCount;
                 this.showNotification(`Bergabung ke ruangan ${data.roomId}`, 'success');
-                // console.log(`🚪 Joined room: ${data.roomId}, users: ${data.userCount}`);
                 
                 if (window.innerWidth < 1024) {
                     this.mobileMenuActive = 'video';
@@ -489,30 +566,23 @@ function app() {
             this.socket.on('user-connected', (userId) => {
                 this.usersInRoom++;
                 this.showNotification('Pengguna baru bergabung', 'info');
-                // console.log(`👤 User connected: ${userId}`);
                 this.createPeerConnection(userId, true);
             });
             
             this.socket.on('user-disconnected', (userId) => {
-                this.usersInRoom--;
+                this.usersInRoom = Math.max(1, this.usersInRoom - 1);
                 this.closePeerConnection(userId);
                 this.showNotification('Pengguna keluar dari ruangan', 'info');
-                // console.log(`👤 User disconnected: ${userId}`);
             });
             
-            // LISTENER BARU: Daftar ruangan aktif
             this.socket.on('active-rooms-list', (rooms) => {
                 this.activeRooms = rooms
                     .filter(room => room.userCount > 0 && room.roomId !== this.roomId)
                     .sort((a, b) => {
-                        // Prioritaskan ruangan yang ada sharing
                         if (a.hasSharing && !b.hasSharing) return -1;
                         if (!a.hasSharing && b.hasSharing) return 1;
-                        // Kemudian berdasarkan jumlah user
                         return b.userCount - a.userCount;
                     });
-                
-                // console.log('📋 Active rooms updated:', this.activeRooms);
             });
             
             this.socket.on('offer', async (data) => {
@@ -534,16 +604,63 @@ function app() {
             this.socket.on('user-sharing-stopped', (userId) => {
                 this.showNotification('Pengguna lain berhenti berbagi layar', 'info');
             });
+            
+            this.socket.on('error-notification', (data) => {
+                this.showNotification(`Error: ${data.message}`, 'error');
+            });
+        },
+        
+        // Start connection monitor
+        startConnectionMonitor() {
+            // Ping server setiap 20 detik
+            setInterval(() => {
+                if (this.socket && this.socket.connected) {
+                    this.socket.emit('ping', { timestamp: Date.now() });
+                }
+            }, 20000);
+            
+            // Test connection quality setiap 30 detik
+            setInterval(() => {
+                if (this.socket && this.socket.connected) {
+                    this.socket.emit('connection-test', { timestamp: Date.now() });
+                }
+            }, 30000);
+            
+            // Monitor WebRTC connections
+            setInterval(() => {
+                this.monitorWebRTCConnections();
+            }, 15000);
+        },
+        
+        // Monitor WebRTC connections
+        monitorWebRTCConnections() {
+            Object.entries(this.peerConnections).forEach(([userId, pc]) => {
+                if (pc) {
+                    const state = pc.iceConnectionState;
+                    if (state === 'disconnected' || state === 'failed') {
+                        console.log(`⚠️ WebRTC connection to ${userId} is ${state}`);
+                        
+                        // Attempt to recover
+                        if (this.localStream) {
+                            setTimeout(() => {
+                                if (pc.iceConnectionState !== 'connected' && 
+                                    pc.iceConnectionState !== 'checking') {
+                                    this.createOffer(userId, pc);
+                                }
+                            }, 2000);
+                        }
+                    }
+                }
+            });
         },
         
         // Bergabung ke ruangan
         joinRoom() {
-            if (this.roomId && !this.isInRoom) {
+            if (this.roomId && !this.isInRoom && this.socket) {
                 this.socket.emit('join-room', this.roomId);
                 this.isInRoom = true;
-                this.showActiveRooms = false; // Tutup panel saat join
+                this.showActiveRooms = false;
                 this.showNotification(`Bergabung ke ruangan ${this.roomId}`, 'success');
-                // console.log(`🚪 Joining room: ${this.roomId}`);
             }
         },
         
@@ -556,69 +673,74 @@ function app() {
                     this.closePeerConnection(userId);
                 });
                 
-                this.socket.emit('leave-room');
+                if (this.socket) {
+                    this.socket.emit('leave-room');
+                }
+                
                 this.isInRoom = false;
                 this.usersInRoom = 1;
                 this.remoteVideos = [];
                 this.showNotification('Keluar dari ruangan', 'info');
-                // console.log('🚪 Left room');
             }
         },
         
-        // Mulai berbagi layar dengan audio yang stabil
+        // Mulai berbagi layar dengan optimasi
         async startScreenShare() {
             try {
-                // Konfigurasi video
+                // Konfigurasi display media dengan optimasi
                 const displayOptions = {
                     video: {
                         cursor: "always",
                         displaySurface: "monitor",
-                        frameRate: { ideal: 30, max: 30 },
-                        width: { ideal: 1920, max: 1920 },
-                        height: { ideal: 1080, max: 1080 }
+                        frameRate: { ideal: 15, max: 30 }, // Lower frame rate for stability
+                        width: { ideal: 1280, max: 1920 }, // Lower resolution
+                        height: { ideal: 720, max: 1080 },
+                        logicalSurface: true
                     }
                 };
                 
-                // Konfigurasi audio khusus untuk volume stabil
+                // Tambahkan audio jika diaktifkan
                 if (this.shareAudio) {
                     displayOptions.audio = {
                         autoGainControl: false,
                         noiseSuppression: false,
                         echoCancellation: false,
-                        channelCount: 2,
-                        sampleRate: 48000,
-                        sampleSize: 16,
-                        volume: 1.0,
-                        googAutoGainControl: false,
-                        googNoiseSuppression: false,
-                        googHighpassFilter: false,
-                        googEchoCancellation: false,
-                        mozAutoGainControl: false,
-                        mozNoiseSuppression: false,
-                        mozEchoCancellation: false
+                        channelCount: 1, // Mono lebih stabil
+                        sampleRate: 24000, // Lower sample rate
+                        volume: 0.8
                     };
                 }
                 
                 // Minta izin untuk berbagi layar
                 this.localStream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
                 
-                // Optimasi audio track jika ada
-                if (this.shareAudio && this.localStream.getAudioTracks().length > 0) {
-                    const audioTrack = this.localStream.getAudioTracks()[0];
+                // Optimasi video track
+                const videoTrack = this.localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    await videoTrack.applyConstraints({
+                        frameRate: 15,
+                        width: 1280,
+                        height: 720
+                    }).catch(e => console.warn('Video constraints error:', e));
                     
-                    try {
-                        await audioTrack.applyConstraints({
-                            autoGainControl: false,
-                            noiseSuppression: false,
-                            echoCancellation: false,
-                            volume: 1.0
-                        });
-                        
-                        const settings = audioTrack.getSettings();
-                        // console.log('🎵 Audio settings:', settings);
-                        
-                    } catch (constraintError) {
-                        console.warn('⚠️ Tidak bisa apply constraints audio:', constraintError);
+                    videoTrack.onended = () => {
+                        this.stopScreenShare();
+                    };
+                }
+                
+                // Optimasi audio track jika ada
+                if (this.shareAudio) {
+                    const audioTrack = this.localStream.getAudioTracks()[0];
+                    if (audioTrack) {
+                        try {
+                            await audioTrack.applyConstraints({
+                                autoGainControl: false,
+                                noiseSuppression: false,
+                                echoCancellation: false
+                            });
+                        } catch (e) {
+                            console.warn('Audio constraints error:', e);
+                        }
                     }
                 }
                 
@@ -629,26 +751,19 @@ function app() {
                     this.isSharing = true;
                     this.showNotification('Berbagi layar dimulai', 'success');
                     
-                    // Atur volume tetap maksimal
                     localVideo.volume = 1.0;
                     
                     if (window.innerWidth < 1024) {
                         this.mobileMenuActive = 'video';
                     }
                     
-                    this.socket.emit('sharing-started');
+                    if (this.socket) {
+                        this.socket.emit('sharing-started');
+                    }
                 }
                 
                 // Kirim stream ke semua peer
                 this.sendStreamToAllPeers();
-                
-                // Handle ketika user stop sharing via browser
-                const videoTrack = this.localStream.getVideoTracks()[0];
-                if (videoTrack) {
-                    videoTrack.onended = () => {
-                        this.stopScreenShare();
-                    };
-                }
                 
             } catch (error) {
                 console.error('❌ Error starting screen share:', error);
@@ -695,41 +810,37 @@ function app() {
                 }
             });
             
-            this.socket.emit('sharing-stopped');
+            if (this.socket) {
+                this.socket.emit('sharing-stopped');
+            }
             this.showNotification('Berbagi layar dihentikan', 'info');
         },
         
-        // Buat Peer Connection dengan audio yang stabil
+        // Buat Peer Connection yang lebih stabil
         createPeerConnection(userId, isInitiator = false) {
             if (this.peerConnections[userId]) {
-                return this.peerConnections[userId];
+                // Coba restart jika connection bermasalah
+                const currentState = this.peerConnections[userId].iceConnectionState;
+                if (currentState === 'disconnected' || currentState === 'failed') {
+                    this.closePeerConnection(userId);
+                } else {
+                    return this.peerConnections[userId];
+                }
             }
             
             const peerConnection = new RTCPeerConnection(this.configuration);
             this.peerConnections[userId] = peerConnection;
             
+            // Tambahkan local stream jika ada
             if (this.localStream) {
                 this.localStream.getTracks().forEach(track => {
-                    if (track.kind === 'audio') {
-                        const sender = peerConnection.addTrack(track, this.localStream);
-                        
-                        if (sender && sender.track) {
-                            const params = sender.getParameters();
-                            if (!params.encodings) {
-                                params.encodings = [{}];
-                            }
-                            params.encodings[0].maxBitrate = 128000;
-                            sender.setParameters(params).catch(e => console.warn('Set parameters error:', e));
-                        }
-                    } else {
-                        peerConnection.addTrack(track, this.localStream);
-                    }
+                    peerConnection.addTrack(track, this.localStream);
                 });
             }
             
             // ICE Candidate handler
             peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
+                if (event.candidate && this.socket) {
                     this.socket.emit('ice-candidate', {
                         candidate: event.candidate,
                         to: userId,
@@ -738,7 +849,7 @@ function app() {
                 }
             };
             
-            // Track handler (menerima stream dari remote)
+            // Track handler
             peerConnection.ontrack = (event) => {
                 if (event.streams && event.streams[0]) {
                     this.addRemoteVideo(userId, event.streams[0]);
@@ -750,27 +861,37 @@ function app() {
                 }
             };
             
-            // ICE Connection State handler
+            // ICE Connection State handler dengan recovery
             peerConnection.oniceconnectionstatechange = () => {
                 const state = peerConnection.iceConnectionState;
                 
-                if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                if (state === 'failed' || state === 'disconnected') {
+                    console.log(`⚠️ ICE connection to ${userId} is ${state}`);
+                    
+                    // Attempt recovery setelah delay
                     setTimeout(() => {
                         if (peerConnection.iceConnectionState !== 'connected' && 
-                            peerConnection.iceConnectionState !== 'checking') {
-                            this.closePeerConnection(userId);
+                            peerConnection.iceConnectionState !== 'checking' &&
+                            this.localStream) {
+                            console.log(`🔄 Attempting to recover connection to ${userId}`);
+                            this.createOffer(userId, peerConnection);
                         }
-                    }, 2000);
+                    }, 3000);
+                } else if (state === 'connected') {
+                    console.log(`✅ ICE connected to ${userId}`);
                 }
             };
             
             // Connection State handler
             peerConnection.onconnectionstatechange = () => {
                 if (peerConnection.connectionState === 'connected') {
-                    // console.log(`✅ Connected to ${userId}`);
+                    console.log(`✅ Peer connection established with ${userId}`);
+                } else if (peerConnection.connectionState === 'failed') {
+                    console.log(`❌ Peer connection failed with ${userId}`);
                 }
             };
             
+            // Buat offer jika initiator
             if (isInitiator && this.localStream) {
                 setTimeout(() => {
                     this.createOffer(userId, peerConnection);
@@ -780,28 +901,78 @@ function app() {
             return peerConnection;
         },
         
-        // Buat Offer dengan audio constraint yang stabil
+        // Buat Offer dengan optimasi
         async createOffer(userId, peerConnection) {
             try {
                 const offerOptions = {
                     offerToReceiveAudio: true,
                     offerToReceiveVideo: true,
                     voiceActivityDetection: false,
-                    iceRestart: false
+                    iceRestart: true
                 };
                 
                 const offer = await peerConnection.createOffer(offerOptions);
+                
+                // Set codec preferences untuk stabil
+                if (offer.sdp) {
+                    offer.sdp = this.preferCodec(offer.sdp, 'video', 'H264');
+                    offer.sdp = this.preferCodec(offer.sdp, 'audio', 'opus');
+                }
+                
                 await peerConnection.setLocalDescription(offer);
                 
-                this.socket.emit('offer', {
-                    sdp: peerConnection.localDescription,
-                    to: userId,
-                    room: this.roomId
-                });
+                if (this.socket) {
+                    this.socket.emit('offer', {
+                        sdp: peerConnection.localDescription,
+                        to: userId,
+                        room: this.roomId
+                    });
+                }
                 
             } catch (error) {
                 console.error('❌ Error creating offer:', error);
             }
+        },
+        
+        // Helper untuk prefer codec tertentu
+        preferCodec(sdp, type, codec) {
+            const lines = sdp.split('\n');
+            let mLine = -1;
+            
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith('m=' + type)) {
+                    mLine = i;
+                    break;
+                }
+            }
+            
+            if (mLine === -1) return sdp;
+            
+            const parts = lines[mLine].split(' ');
+            const payloads = parts.slice(3);
+            
+            // Reorder payloads
+            const newPayloads = [];
+            for (const payload of payloads) {
+                if (this.getCodecName(sdp, payload) === codec) {
+                    newPayloads.unshift(payload);
+                } else {
+                    newPayloads.push(payload);
+                }
+            }
+            
+            lines[mLine] = parts.slice(0, 3).concat(newPayloads).join(' ');
+            return lines.join('\n');
+        },
+        
+        getCodecName(sdp, payload) {
+            const lines = sdp.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].startsWith('a=rtpmap:' + payload)) {
+                    return lines[i].split(' ')[1].split('/')[0];
+                }
+            }
+            return '';
         },
         
         // Handle Offer dari remote
@@ -814,13 +985,22 @@ function app() {
                 const answer = await peerConnection.createAnswer({
                     voiceActivityDetection: false
                 });
+                
+                // Set codec preferences
+                if (answer.sdp) {
+                    answer.sdp = this.preferCodec(answer.sdp, 'video', 'H264');
+                    answer.sdp = this.preferCodec(answer.sdp, 'audio', 'opus');
+                }
+                
                 await peerConnection.setLocalDescription(answer);
                 
-                this.socket.emit('answer', {
-                    sdp: peerConnection.localDescription,
-                    to: data.from,
-                    room: this.roomId
-                });
+                if (this.socket) {
+                    this.socket.emit('answer', {
+                        sdp: peerConnection.localDescription,
+                        to: data.from,
+                        room: this.roomId
+                    });
+                }
                 
             } catch (error) {
                 console.error('❌ Error handling offer:', error);
@@ -833,10 +1013,7 @@ function app() {
                 const peerConnection = this.peerConnections[data.from];
                 if (peerConnection) {
                     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-                } else {
-                    console.error('❌ No peer connection found for:', data.from);
                 }
-                
             } catch (error) {
                 console.error('❌ Error handling answer:', error);
             }
@@ -877,25 +1054,9 @@ function app() {
                 }
             });
             
-            // Tambahkan track baru dengan constraint audio
+            // Tambahkan track baru
             this.localStream.getTracks().forEach(track => {
-                const sender = peerConnection.addTrack(track, this.localStream);
-                
-                if (track.kind === 'audio' && sender) {
-                    setTimeout(() => {
-                        try {
-                            const params = sender.getParameters();
-                            if (!params.encodings) {
-                                params.encodings = [{}];
-                            }
-                            params.encodings[0].maxBitrate = 128000;
-                            params.encodings[0].priority = 'high';
-                            sender.setParameters(params);
-                        } catch (e) {
-                            console.warn('Failed to set audio parameters:', e);
-                        }
-                    }, 100);
-                }
+                peerConnection.addTrack(track, this.localStream);
             });
             
             this.createOffer(userId, peerConnection);
@@ -929,7 +1090,7 @@ function app() {
             this.updateRemoteVideoElements();
         },
         
-        // PERBAIKAN: Update elemen video remote di DOM - SAMA dengan video lokal
+        // Update elemen video remote di DOM
         updateRemoteVideoElements() {
             const container = document.getElementById('remoteVideosContainer');
             if (!container) return;
@@ -949,7 +1110,6 @@ function app() {
                     videoElement.className = 'w-full h-full object-contain';
                     videoElement.volume = 1.0;
                     
-                    // Add metadata listener untuk aspect ratio
                     videoElement.addEventListener('loadedmetadata', () => {
                         if (this.isFullscreenMode) {
                             const container = videoElement.closest('.sharing-video-container.fullscreen-mode');
@@ -964,11 +1124,11 @@ function app() {
                     videoElement.srcObject = videoData.stream;
                 }
                 
-                // Buat container yang SAMA dengan video lokal
+                // Buat container
                 const videoWrapper = document.createElement('div');
                 videoWrapper.className = 'sharing-video-container video-container-mobile';
                 
-                // Live badge - SAMA dengan video lokal
+                // Live badge
                 const liveBadge = document.createElement('div');
                 liveBadge.className = 'absolute top-3 md:top-4 left-3 md:left-4';
                 liveBadge.innerHTML = `
@@ -979,18 +1139,17 @@ function app() {
                     </div>
                 `;
                 
-                // User label - SAMA dengan video lokal
+                // User label
                 const userLabel = document.createElement('div');
                 userLabel.className = 'absolute bottom-3 md:bottom-4 left-3 md:left-4 user-label';
                 userLabel.innerHTML = `<i class="fas fa-user mr-1 md:mr-2"></i>User ${videoData.userId.substring(0, 8)}`;
                 
-                // Tombol fullscreen - SAMA dengan video lokal
+                // Tombol fullscreen
                 const fullscreenBtn = document.createElement('button');
                 fullscreenBtn.className = 'fullscreen-btn absolute top-3 right-3 md:top-4 md:right-4';
                 fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
                 fullscreenBtn.onclick = () => this.toggleFullscreen(`remote-${videoData.userId}`);
                 
-                // Tambahkan semua elemen ke container
                 videoWrapper.appendChild(videoElement);
                 videoWrapper.appendChild(liveBadge);
                 videoWrapper.appendChild(userLabel);
@@ -1001,7 +1160,6 @@ function app() {
         
         // Helper: Tampilkan notifikasi
         showNotification(message, type = 'info') {
-            // Hapus notifikasi sebelumnya
             const existingNotifications = document.querySelectorAll('[data-notification]');
             existingNotifications.forEach(n => {
                 if (n.parentNode) {
@@ -1013,12 +1171,14 @@ function app() {
             notification.setAttribute('data-notification', 'true');
             notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 transform transition-transform duration-300 max-w-sm ${type === 'success' ? 'bg-green-900 text-green-100' :
                 type === 'error' ? 'bg-red-900 text-red-100' :
+                type === 'warning' ? 'bg-yellow-900 text-yellow-100' :
                     'bg-blue-900 text-blue-100'
                 }`;
             notification.innerHTML = `
                 <div class="flex items-center">
                     <i class="fas fa-${type === 'success' ? 'check-circle' :
-                    type === 'error' ? 'exclamation-circle' : 'info-circle'
+                    type === 'error' ? 'exclamation-circle' :
+                    type === 'warning' ? 'exclamation-triangle' : 'info-circle'
                 } mr-3 flex-shrink-0"></i>
                     <span class="text-sm md:text-base">${message}</span>
                 </div>
@@ -1033,7 +1193,7 @@ function app() {
                         document.body.removeChild(notification);
                     }
                 }, 300);
-            }, 3000);
+            }, type === 'error' ? 5000 : 3000);
         }
     };
 }
