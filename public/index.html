@@ -938,27 +938,27 @@
                     <span class="text-xs">Video</span>
                 </button>
                 
-                <button @click="toggleDebugPanel()"
+                <!-- <button @click="toggleDebugPanel()"
                         class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors text-gray-400 hover:text-white">
                     <i class="fas fa-bug text-lg mb-1"></i>
                     <span class="text-xs">Debug</span>
-                </button>
+                </button> -->
                 
-                <button @click="startScreenShare()" 
+                <!-- <button @click="startScreenShare()" 
                         :disabled="!isInRoom || isSharing"
                         class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
                         :class="isSharing ? 'bg-red-900 text-red-300' : (!isInRoom || isSharing ? 'bg-gray-700 text-gray-500' : 'bg-blue-900 text-blue-300')">
                     <i class="fas fa-share-square text-lg mb-1"></i>
                     <span class="text-xs" x-text="isSharing ? 'Stop' : 'Share'"></span>
-                </button>
+                </button> -->
                 
-                <button @click="toggleAllFullscreen()"
+                <!-- <button @click="toggleAllFullscreen()"
                         :disabled="!isSharing && remoteVideos.length === 0"
                         class="flex flex-col items-center justify-center p-2 rounded-lg transition-colors"
                         :class="isFullscreenMode ? 'bg-blue-900 text-blue-300' : (!isSharing && remoteVideos.length === 0 ? 'bg-gray-700 text-gray-500' : 'bg-blue-900 text-blue-300')">
                     <i class="fas fa-expand text-lg mb-1"></i>
                     <span class="text-xs" x-text="isFullscreenMode ? 'Exit FS' : 'Fullscreen'"></span>
-                </button>
+                </button> -->
             </div>
         </div>
 
